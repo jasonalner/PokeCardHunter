@@ -1,16 +1,14 @@
 import 'dotenv/config';
-import { readFile } from 'node:fs/promises';
-import { openDb, initSchema, itemExists, insertCandidate } from './storage/db.js';
+import { openDb, initSchema, itemExists, insertCandidate, listTargetCardsForPipeline } from './storage/db.js';
 import { searchListings } from './poller/ebaySearch.js';
 import { matchListing } from './matcher/match.js';
 import { sendAlert } from './notifier/notify.js';
 
 async function run() {
-  const targetCards = JSON.parse(
-    await readFile(new URL('../config/target-cards.json', import.meta.url), 'utf8')
-  );
   const db = openDb();
   await initSchema(db);
+
+  const targetCards = await listTargetCardsForPipeline(db);
 
   for (const targetCard of targetCards) {
     const listings = await searchListings(targetCard);

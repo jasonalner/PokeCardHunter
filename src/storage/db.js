@@ -113,3 +113,45 @@ export async function listCardNames(db) {
   const result = await db.execute('SELECT DISTINCT card_name FROM candidates ORDER BY card_name');
   return result.rows.map((row) => row.card_name);
 }
+
+export async function listTargetCards(db) {
+  const result = await db.execute('SELECT * FROM target_cards ORDER BY card_name');
+  return result.rows;
+}
+
+// Same rows as listTargetCards, reshaped into what searchListings() and
+// matchListing() expect (name/set/number/searchQuery/targetPrice/currency).
+export async function listTargetCardsForPipeline(db) {
+  const rows = await listTargetCards(db);
+  return rows.map((row) => ({
+    cardName: row.card_name,
+    name: row.name,
+    set: row.set_name,
+    number: row.number,
+    searchQuery: row.search_query,
+    targetPrice: row.target_price,
+    currency: row.currency,
+  }));
+}
+
+// Throws with a libSQL "UNIQUE constraint failed" message if the same
+// name/set/number combo already exists — callers should surface that as a
+// 409, not a generic 500.
+export async function addTargetCard(db, card) {
+  const now = new Date().toISOString();
+  await db.execute({
+    sql: `INSERT INTO target_cards (
+      card_name, name, set_name, number, search_query, target_price, currency, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      card.cardName,
+      card.name,
+      card.set,
+      card.number,
+      card.searchQuery,
+      card.targetPrice,
+      card.currency,
+      now,
+    ],
+  });
+}

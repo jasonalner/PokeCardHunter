@@ -119,10 +119,9 @@ export async function getItemDescription(itemId) {
 export { isJunkTitle, CATEGORY_ID };
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const { readFile } = await import('node:fs/promises');
-  const targetCards = JSON.parse(
-    await readFile(new URL('../../config/target-cards.json', import.meta.url), 'utf8')
-  );
+  const { openDb, listTargetCardsForPipeline } = await import('../storage/db.js');
+  const db = openDb();
+  const targetCards = await listTargetCardsForPipeline(db);
   for (const card of targetCards) {
     const listings = await searchListings(card);
     console.log(`\n${card.cardName}: ${listings.length} candidate(s)`);

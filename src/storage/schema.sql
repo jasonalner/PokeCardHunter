@@ -23,3 +23,20 @@ CREATE TABLE IF NOT EXISTS candidates (
 CREATE INDEX IF NOT EXISTS idx_candidates_found_at ON candidates(found_at);
 CREATE INDEX IF NOT EXISTS idx_candidates_card_name ON candidates(card_name);
 CREATE INDEX IF NOT EXISTS idx_candidates_status ON candidates(status);
+
+-- Source of truth for what the poller scans each tick. Lives in Turso
+-- (not config/target-cards.json) so the results screen and the scheduled
+-- CI run always see the same list — adding a card here takes effect on the
+-- next scheduled run with no commit/push needed.
+CREATE TABLE IF NOT EXISTS target_cards (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  card_name     TEXT NOT NULL,
+  name          TEXT NOT NULL,
+  set_name      TEXT NOT NULL,
+  number        TEXT NOT NULL,
+  search_query  TEXT NOT NULL,
+  target_price  REAL NOT NULL,
+  currency      TEXT NOT NULL DEFAULT 'GBP',
+  created_at    TEXT NOT NULL,
+  UNIQUE (name, set_name, number)
+);

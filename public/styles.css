@@ -205,3 +205,35 @@ select.status-select:disabled {
   text-align: center;
   padding: 2rem;
 }
+
+.target-cards {
+  margin-bottom: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 1rem;
+}
+
+.target-cards summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.target-cards summary::marker {
+  color: var(--purple);
+}
+
+.target-cards-body {
+  margin-top: 1rem;
+}
+
+.target-cards-table {
+  margin-bottom: 1rem;
+}
+
+.form-error {
+  color: var(--orange);
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+}

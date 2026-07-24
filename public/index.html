@@ -12,6 +12,54 @@
     <p class="subtitle">Candidate listings found by the scan pipeline</p>
   </header>
 
+  <details class="target-cards" id="target-cards" open>
+    <summary>Target Cards</summary>
+    <div class="target-cards-body">
+      <table class="results-table target-cards-table">
+        <thead>
+          <tr>
+            <th>Card</th>
+            <th>Set</th>
+            <th>Number</th>
+            <th>Target Price</th>
+          </tr>
+        </thead>
+        <tbody id="target-cards-body"></tbody>
+      </table>
+
+      <form class="filters" id="add-card-form">
+        <div class="field">
+          <label for="new-card-name">Name</label>
+          <input type="text" id="new-card-name" placeholder="Charizard ex" required />
+        </div>
+        <div class="field">
+          <label for="new-card-set">Set</label>
+          <input type="text" id="new-card-set" placeholder="Obsidian Flames" required />
+        </div>
+        <div class="field">
+          <label for="new-card-number">Number</label>
+          <input type="text" id="new-card-number" placeholder="125/197" required />
+        </div>
+        <div class="field">
+          <label for="new-card-price">Target Price</label>
+          <input type="number" id="new-card-price" placeholder="45.00" min="0" step="0.01" required />
+        </div>
+        <div class="field">
+          <label for="new-card-currency">Currency</label>
+          <select id="new-card-currency">
+            <option value="GBP">GBP</option>
+            <option value="USD">USD</option>
+            <option value="EUR">EUR</option>
+          </select>
+        </div>
+        <div class="field field-actions">
+          <button type="submit">Add Card</button>
+        </div>
+      </form>
+      <p id="add-card-error" class="form-error" hidden></p>
+    </div>
+  </details>
+
   <section class="filters" id="filters">
     <div class="field">
       <label for="filter-card">Card</label>

@@ -12,6 +12,14 @@ const els = {
   count: document.getElementById('results-count'),
   empty: document.getElementById('empty-state'),
   table: document.querySelector('.results-table'),
+  targetCardsBody: document.getElementById('target-cards-body'),
+  addCardForm: document.getElementById('add-card-form'),
+  addCardError: document.getElementById('add-card-error'),
+  newCardName: document.getElementById('new-card-name'),
+  newCardSet: document.getElementById('new-card-set'),
+  newCardNumber: document.getElementById('new-card-number'),
+  newCardPrice: document.getElementById('new-card-price'),
+  newCardCurrency: document.getElementById('new-card-currency'),
 };
 
 const CURRENCY_SYMBOLS = { GBP: '£', USD: '$', EUR: '€' };
@@ -94,6 +102,58 @@ async function loadResults() {
   renderRows(await res.json());
 }
 
+function renderTargetCardRows(rows) {
+  els.targetCardsBody.innerHTML = '';
+  for (const row of rows) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(row.name)}</td>
+      <td>${escapeHtml(row.set_name)}</td>
+      <td>${escapeHtml(row.number)}</td>
+      <td>${formatMoney(row.target_price, row.currency)}</td>
+    `;
+    els.targetCardsBody.appendChild(tr);
+  }
+}
+
+async function loadTargetCards() {
+  const res = await fetch('/api/target-cards');
+  renderTargetCardRows(await res.json());
+}
+
+els.addCardForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  els.addCardError.hidden = true;
+
+  const submitButton = els.addCardForm.querySelector('button[type="submit"]');
+  submitButton.disabled = true;
+
+  try {
+    const res = await fetch('/api/target-cards', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: els.newCardName.value,
+        set: els.newCardSet.value,
+        number: els.newCardNumber.value,
+        targetPrice: els.newCardPrice.value,
+        currency: els.newCardCurrency.value,
+      }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || `request failed: ${res.status}`);
+
+    els.addCardForm.reset();
+    els.newCardCurrency.value = 'GBP';
+    await loadTargetCards();
+  } catch (err) {
+    els.addCardError.textContent = err.message;
+    els.addCardError.hidden = false;
+  } finally {
+    submitButton.disabled = false;
+  }
+});
+
 els.body.addEventListener('change', async (e) => {
   const select = e.target.closest('select.status-select');
   if (!select) return;
@@ -137,3 +197,4 @@ els.clear.addEventListener('click', () => {
 
 loadCardNames();
 loadResults();
+loadTargetCards();

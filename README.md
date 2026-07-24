@@ -40,6 +40,11 @@ tool. Filter by card, status, alerted, date range, and price range; click a
 row's status badge to change it (`found` → `offered` → `bought` → `sold` →
 `flipped`) directly against the database.
 
+The "Target Cards" section on the same page lists and adds to the card
+watch list. This also lives in Turso (`target_cards` table), not
+`config/*.json` — a card added here takes effect on the very next scheduled
+run, no commit/push required, since the poller reads the same table.
+
 ## Setup
 
 ```
