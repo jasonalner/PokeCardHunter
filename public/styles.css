@@ -200,6 +200,19 @@ select.status-select:disabled {
   text-decoration: underline;
 }
 
+.margin-good {
+  color: var(--green);
+  font-weight: 600;
+}
+
+.margin-ok {
+  color: var(--orange);
+}
+
+.margin-poor {
+  color: var(--text-dim);
+}
+
 .empty-state {
   color: var(--text-dim);
   text-align: center;

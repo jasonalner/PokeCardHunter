@@ -36,9 +36,14 @@ tiers at this scale, with no ongoing API cost.
 http://localhost:3000, reading directly from the same Turso database the
 scheduled pipeline writes to — no separate sync step. Plain HTML/CSS/JS in
 `public/`, no build step or framework, since this is a single-user local
-tool. Filter by card, status, alerted, date range, and price range; click a
-row's status badge to change it (`found` → `offered` → `bought` → `sold` →
-`flipped`) directly against the database.
+tool. Filter by card, status, alerted, date range, price range, and minimum
+margin %; click a row's status badge to change it (`found` → `offered` →
+`bought` → `sold` → `flipped`) directly against the database.
+
+The margin filter defaults to `config/settings.json`'s `priceThresholdPct`
+(the same bar that triggers a push alert), so the page opens showing only
+listings actually worth acting on rather than every candidate ever stored.
+Clear the filter to see everything, including the near-misses.
 
 The "Target Cards" section on the same page lists and adds to the card
 watch list. This also lives in Turso (`target_cards` table), not

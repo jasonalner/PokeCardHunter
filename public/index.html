@@ -100,6 +100,10 @@
       <label for="filter-price-max">Max price</label>
       <input type="number" id="filter-price-max" placeholder="999" min="0" step="0.01" />
     </div>
+    <div class="field">
+      <label for="filter-min-margin">Min margin %</label>
+      <input type="number" id="filter-min-margin" placeholder="0" min="0" max="100" step="1" />
+    </div>
     <div class="field field-actions">
       <button id="apply-filters">Apply</button>
       <button id="clear-filters" class="secondary">Clear</button>
@@ -114,6 +118,7 @@
         <th>Card</th>
         <th>Listing Price</th>
         <th>Target Price</th>
+        <th>Margin</th>
         <th>Found</th>
         <th>Status</th>
         <th>Listing</th>

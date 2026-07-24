@@ -6,6 +6,7 @@ const els = {
   dateTo: document.getElementById('filter-date-to'),
   priceMin: document.getElementById('filter-price-min'),
   priceMax: document.getElementById('filter-price-max'),
+  minMargin: document.getElementById('filter-min-margin'),
   apply: document.getElementById('apply-filters'),
   clear: document.getElementById('clear-filters'),
   body: document.getElementById('results-body'),
@@ -24,6 +25,23 @@ const els = {
 
 const CURRENCY_SYMBOLS = { GBP: '£', USD: '$', EUR: '€' };
 const STATUSES = ['found', 'offered', 'bought', 'sold', 'flipped'];
+
+// The margin % (below target price) that config/settings.json's
+// priceThresholdPct treats as "good enough to alert on" — reused here so the
+// results screen's default view and the push-notification bar agree, rather
+// than a second hardcoded number that could drift out of sync.
+let goodMarginPct = 0;
+
+async function loadSettings() {
+  const res = await fetch('/api/settings');
+  const settings = await res.json();
+  goodMarginPct = Math.round((1 - settings.priceThresholdPct) * 100);
+  els.minMargin.value = goodMarginPct;
+}
+
+function marginPct(targetPrice, listingPrice) {
+  return ((targetPrice - listingPrice) / targetPrice) * 100;
+}
 
 function capitalize(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
@@ -70,6 +88,7 @@ function buildQuery() {
   if (els.dateTo.value) params.set('dateTo', els.dateTo.value);
   if (els.priceMin.value) params.set('priceMin', els.priceMin.value);
   if (els.priceMax.value) params.set('priceMax', els.priceMax.value);
+  if (els.minMargin.value) params.set('minMarginPct', els.minMargin.value);
   return params.toString();
 }
 
@@ -80,11 +99,15 @@ function renderRows(rows) {
   els.empty.hidden = rows.length > 0;
 
   for (const row of rows) {
+    const margin = marginPct(row.target_price, row.listing_price);
+    const marginClass = margin >= goodMarginPct ? 'margin-good' : margin > 0 ? 'margin-ok' : 'margin-poor';
+
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${escapeHtml(row.card_name)}</td>
       <td>${formatMoney(row.listing_price, row.currency)}</td>
       <td>${formatMoney(row.target_price, row.currency)}</td>
+      <td class="${marginClass}">${margin.toFixed(0)}%</td>
       <td>${formatDate(row.found_at)}</td>
       <td>
         <select class="badge status-select ${row.status}" data-item-id="${row.item_id}" data-current-status="${row.status}">
@@ -192,9 +215,10 @@ els.clear.addEventListener('click', () => {
   els.dateTo.value = '';
   els.priceMin.value = '';
   els.priceMax.value = '';
+  els.minMargin.value = '';
   loadResults();
 });
 
 loadCardNames();
-loadResults();
 loadTargetCards();
+loadSettings().then(loadResults);

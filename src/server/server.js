@@ -4,6 +4,7 @@
 import 'dotenv/config';
 import express from 'express';
 import path from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import {
   openDb,
@@ -30,6 +31,14 @@ app.get('/api/candidates', async (req, res) => {
 app.get('/api/card-names', async (req, res) => {
   const names = await listCardNames(db);
   res.json(names);
+});
+
+// Exposes config/settings.json so the frontend can default its "good margin"
+// filter to the same priceThresholdPct the matcher uses to trigger alerts,
+// rather than a second hardcoded number that could drift out of sync.
+app.get('/api/settings', async (req, res) => {
+  const raw = await readFile(path.join(__dirname, '../../config/settings.json'), 'utf8');
+  res.json(JSON.parse(raw));
 });
 
 app.patch('/api/candidates/:itemId', async (req, res) => {

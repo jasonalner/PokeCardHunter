@@ -100,6 +100,11 @@ export async function listCandidates(db, filters = {}) {
     conditions.push('listing_price <= ?');
     args.push(Number(filters.priceMax));
   }
+  if (filters.minMarginPct) {
+    // margin % = how far under target_price the listing is, as a percentage
+    conditions.push('((target_price - listing_price) * 100.0 / target_price) >= ?');
+    args.push(Number(filters.minMarginPct));
+  }
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const result = await db.execute({
