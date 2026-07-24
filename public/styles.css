@@ -1,0 +1,207 @@
+:root {
+  --bg: #0F0F0F;
+  --surface: #1A1A1A;
+  --surface-2: #232323;
+  --border: #2A2A2A;
+  --text: #F5F5F5;
+  --text-dim: #9A9A9A;
+  --purple: #7E7AFF;
+  --orange: #FFAA7A;
+  --green: #94FF7A;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 2rem;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
+}
+
+header h1 {
+  margin: 0 0 0.25rem;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+header .subtitle {
+  margin: 0 0 1.5rem;
+  color: var(--text-dim);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.field label {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+select,
+input[type="date"],
+input[type="number"] {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.4rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  min-width: 130px;
+}
+
+select:focus,
+input:focus {
+  outline: none;
+  border-color: var(--purple);
+}
+
+.field-actions {
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+button {
+  background: var(--purple);
+  color: #0f0f0f;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+button:hover {
+  opacity: 0.9;
+}
+
+button.secondary {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+}
+
+.results-count {
+  color: var(--text-dim);
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+}
+
+.results-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.results-table th,
+.results-table td {
+  padding: 0.7rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.results-table th {
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-weight: 600;
+}
+
+.results-table tbody tr:hover {
+  background: var(--surface-2);
+}
+
+.results-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.badge.found {
+  border: 1px solid var(--text-dim);
+  color: var(--text-dim);
+}
+
+.badge.offered {
+  border: 1px solid var(--purple);
+  color: var(--purple);
+  background: rgba(126, 122, 255, 0.12);
+}
+
+.badge.bought {
+  border: 1px solid var(--orange);
+  color: var(--orange);
+  background: rgba(255, 170, 122, 0.12);
+}
+
+.badge.sold {
+  border: 1px solid var(--green);
+  color: var(--green);
+  background: rgba(148, 255, 122, 0.12);
+}
+
+.badge.flipped {
+  background: var(--green);
+  color: #0f0f0f;
+  border: 1px solid var(--green);
+}
+
+select.status-select {
+  font-family: inherit;
+  cursor: pointer;
+  min-width: 0;
+}
+
+select.status-select:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.results-table a {
+  color: var(--purple);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.results-table a:hover {
+  text-decoration: underline;
+}
+
+.empty-state {
+  color: var(--text-dim);
+  text-align: center;
+  padding: 2rem;
+}

@@ -62,3 +62,54 @@ export async function updateStatus(db, itemId, status) {
     args: [status, new Date().toISOString(), itemId],
   });
 }
+
+export const VALID_STATUSES = ['found', 'offered', 'bought', 'sold', 'flipped'];
+
+// found_at is stored as an ISO timestamp; date-only filter values (from an
+// <input type="date">) are normalized to the start/end of that day so a
+// single day's candidates aren't excluded by a bare string comparison.
+export async function listCandidates(db, filters = {}) {
+  const conditions = [];
+  const args = [];
+
+  if (filters.cardName) {
+    conditions.push('card_name = ?');
+    args.push(filters.cardName);
+  }
+  if (filters.status) {
+    conditions.push('status = ?');
+    args.push(filters.status);
+  }
+  if (filters.alerted === '1' || filters.alerted === '0') {
+    conditions.push('alerted = ?');
+    args.push(Number(filters.alerted));
+  }
+  if (filters.dateFrom) {
+    conditions.push('found_at >= ?');
+    args.push(filters.dateFrom.includes('T') ? filters.dateFrom : `${filters.dateFrom}T00:00:00.000Z`);
+  }
+  if (filters.dateTo) {
+    conditions.push('found_at <= ?');
+    args.push(filters.dateTo.includes('T') ? filters.dateTo : `${filters.dateTo}T23:59:59.999Z`);
+  }
+  if (filters.priceMin) {
+    conditions.push('listing_price >= ?');
+    args.push(Number(filters.priceMin));
+  }
+  if (filters.priceMax) {
+    conditions.push('listing_price <= ?');
+    args.push(Number(filters.priceMax));
+  }
+
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  const result = await db.execute({
+    sql: `SELECT * FROM candidates ${where} ORDER BY found_at DESC`,
+    args,
+  });
+  return result.rows;
+}
+
+export async function listCardNames(db) {
+  const result = await db.execute('SELECT DISTINCT card_name FROM candidates ORDER BY card_name');
+  return result.rows.map((row) => row.card_name);
+}

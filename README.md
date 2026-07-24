@@ -11,7 +11,7 @@ Live and running on schedule. Build order (per brief):
 3. [x] Storage layer (`src/storage/db.js`, `schema.sql`) — hosted on Turso
 4. [x] ntfy notification hook (`src/notifier/notify.js`)
 5. [x] GitHub Actions workflow (`.github/workflows/scan.yml`) — runs every 15 min
-6. [ ] Results screen
+6. [x] Results screen (`src/server/server.js`, `public/`) — `npm run results`, http://localhost:3000
 
 ## Architecture
 
@@ -29,6 +29,16 @@ Two independent pieces run per scheduled tick, no LLM involved anywhere:
 
 This keeps the whole stack (eBay API, GitHub Actions, Turso, ntfy) on free
 tiers at this scale, with no ongoing API cost.
+
+## Results screen
+
+`npm run results` starts a small Express server (`src/server/server.js`) at
+http://localhost:3000, reading directly from the same Turso database the
+scheduled pipeline writes to — no separate sync step. Plain HTML/CSS/JS in
+`public/`, no build step or framework, since this is a single-user local
+tool. Filter by card, status, alerted, date range, and price range; click a
+row's status badge to change it (`found` → `offered` → `bought` → `sold` →
+`flipped`) directly against the database.
 
 ## Setup
 
