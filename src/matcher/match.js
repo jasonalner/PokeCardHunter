@@ -1,0 +1,74 @@
+// Step 2 of the build order: rule-based match / condition / price-threshold
+// check on candidates that survive the poller's filters. No external API
+// call, no network dependency — every alert gets manually reviewed, so
+// false positives here are cheap. Don't overengineer this.
+
+import { readFile } from 'node:fs/promises';
+
+const CONDITION_KEYWORDS = ['nm', 'near mint', 'mint'];
+
+async function loadSettings() {
+  const raw = await readFile(new URL('../../config/settings.json', import.meta.url), 'utf8');
+  return JSON.parse(raw);
+}
+
+function titleContainsAll(title, keywords) {
+  const lower = title.toLowerCase();
+  return keywords
+    .filter(Boolean)
+    .every((keyword) => lower.includes(String(keyword).toLowerCase()));
+}
+
+// Sellers routinely drop the "/GG70" (total-in-subset) half of a card number
+// and just write the card's own number, e.g. "GG10" instead of "GG10/GG70" —
+// missing that match is a false negative, which matters more here than the
+// small extra false-positive risk from a looser number check.
+function primaryNumberToken(number) {
+  return number ? String(number).split('/')[0] : number;
+}
+
+function titleHasConditionKeyword(title) {
+  const lower = title.toLowerCase();
+  return CONDITION_KEYWORDS.some((keyword) => lower.includes(keyword));
+}
+
+// listing.condition is eBay's Card Condition aspect value, already used by
+// the poller's aspect_filter to narrow the search — its presence is the
+// primary condition signal. The title keyword check is a secondary,
+// best-effort signal only, not a replacement for it.
+export async function matchListing(listing, targetCard, { priceThresholdPct } = {}) {
+  const threshold = priceThresholdPct ?? (await loadSettings()).priceThresholdPct;
+
+  const cardMatch = titleContainsAll(listing.title, [targetCard.name, targetCard.set, primaryNumberToken(targetCard.number)]);
+  const conditionOk = Boolean(listing.condition) || titleHasConditionKeyword(listing.title);
+  const priceCutoff = targetCard.targetPrice * threshold;
+  const priceOk = listing.price < priceCutoff;
+
+  const verdict = cardMatch && conditionOk && priceOk ? 'alert' : 'no_alert';
+
+  const reasons = [];
+  if (!cardMatch) reasons.push('title missing card name/set/number');
+  if (!conditionOk) reasons.push('no condition signal (aspect or title keyword)');
+  if (!priceOk) reasons.push(`price ${listing.price} not under threshold (${priceCutoff.toFixed(2)})`);
+  if (verdict === 'alert') reasons.push('card match, condition signal, and price threshold all pass');
+
+  return { match: cardMatch, conditionOk, priceOk, verdict, reasoning: reasons.join('; ') };
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const result = await matchListing(
+    {
+      title: 'Pokemon Charizard ex 125/197 Obsidian Flames Holo NM',
+      price: 28.5,
+      condition: 'Near Mint or Better',
+    },
+    {
+      cardName: 'Charizard ex - Obsidian Flames - 125/197',
+      name: 'Charizard ex',
+      set: 'Obsidian Flames',
+      number: '125/197',
+      targetPrice: 45.0,
+    }
+  );
+  console.log(result);
+}

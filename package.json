@@ -1,0 +1,19 @@
+{
+  "name": "pokecardhunter",
+  "version": "0.1.0",
+  "description": "Scans eBay UK for undervalued Pokemon TCG cards and sends push alerts",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "poll": "node src/poller/ebaySearch.js",
+    "match": "node src/matcher/match.js",
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.17.4",
+    "dotenv": "^16.4.5"
+  }
+}
