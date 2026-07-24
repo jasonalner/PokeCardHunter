@@ -4,13 +4,13 @@ See [pokemon-alert-agent-brief.md](./pokemon-alert-agent-brief.md) for the full 
 
 ## Status
 
-Scaffolded, not yet functional end-to-end (needs live credentials to verify). Build order (per brief):
+Live and running on schedule. Build order (per brief):
 
 1. [x] eBay search module (`src/poller/ebaySearch.js`) — standalone via `npm run poll`
 2. [x] Rule-based matcher (`src/matcher/match.js`) — standalone via `npm run match`
 3. [x] Storage layer (`src/storage/db.js`, `schema.sql`) — hosted on Turso
-4. [ ] ntfy notification hook (`src/notifier/notify.js`)
-5. [ ] GitHub Actions workflow (`.github/workflows/scan.yml`)
+4. [x] ntfy notification hook (`src/notifier/notify.js`)
+5. [x] GitHub Actions workflow (`.github/workflows/scan.yml`) — runs every 15 min
 6. [ ] Results screen
 
 ## Architecture
