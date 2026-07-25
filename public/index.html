@@ -8,8 +8,16 @@
 </head>
 <body>
   <header>
-    <h1>PokeCardHunter</h1>
-    <p class="subtitle">Candidate listings found by the scan pipeline</p>
+    <div class="header-row">
+      <div>
+        <h1>PokeCardHunter</h1>
+        <p class="subtitle">Candidate listings found by the scan pipeline</p>
+      </div>
+      <div class="run-now-wrap">
+        <button id="run-now" class="accent">Run Now</button>
+        <span id="run-now-status" class="run-now-status"></span>
+      </div>
+    </div>
   </header>
 
   <details class="target-cards" id="target-cards" open>
@@ -21,7 +29,10 @@
             <th>Card</th>
             <th>Set</th>
             <th>Number</th>
-            <th>Target Price</th>
+            <th>Avg Price</th>
+            <th>Range</th>
+            <th>Listings</th>
+            <th>Last Checked</th>
           </tr>
         </thead>
         <tbody id="target-cards-body"></tbody>
@@ -39,10 +50,6 @@
         <div class="field">
           <label for="new-card-number">Number</label>
           <input type="text" id="new-card-number" placeholder="125/197" required />
-        </div>
-        <div class="field">
-          <label for="new-card-price">Target Price</label>
-          <input type="number" id="new-card-price" placeholder="45.00" min="0" step="0.01" required />
         </div>
         <div class="field">
           <label for="new-card-currency">Currency</label>
@@ -64,6 +71,10 @@
     <div class="field">
       <label for="filter-card">Card</label>
       <select id="filter-card"><option value="">All cards</option></select>
+    </div>
+    <div class="field">
+      <label for="filter-set">Set</label>
+      <select id="filter-set"><option value="">All sets</option></select>
     </div>
     <div class="field">
       <label for="filter-status">Status</label>
@@ -112,12 +123,12 @@
 
   <p id="results-count" class="results-count"></p>
 
-  <table class="results-table">
+  <table class="results-table" id="results-table">
     <thead>
       <tr>
         <th>Card</th>
         <th>Listing Price</th>
-        <th>Target Price</th>
+        <th>Market Avg</th>
         <th>Margin</th>
         <th>Found</th>
         <th>Status</th>

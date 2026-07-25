@@ -30,8 +30,36 @@ header h1 {
 }
 
 header .subtitle {
-  margin: 0 0 1.5rem;
+  margin: 0;
   color: var(--text-dim);
+}
+
+.header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+}
+
+.run-now-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+button.accent {
+  background: transparent;
+  color: var(--orange);
+  border: 1px solid var(--orange);
+}
+
+.run-now-status {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.run-now-error {
+  color: var(--orange);
 }
 
 .filters {

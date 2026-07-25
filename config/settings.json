@@ -1,3 +1,4 @@
 {
-  "priceThresholdPct": 0.70
+  "priceThresholdPct": 0.70,
+  "minSampleSizeForAverage": 3
 }

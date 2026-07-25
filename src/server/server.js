@@ -8,16 +8,22 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import {
   openDb,
+  initSchema,
+  runMigrations,
   listCandidates,
   listCardNames,
+  listSetNames,
   updateStatus,
   VALID_STATUSES,
-  listTargetCards,
+  listTargetCardsWithStats,
   addTargetCard,
 } from '../storage/db.js';
+import { runPipeline } from '../index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const db = openDb();
+await initSchema(db);
+await runMigrations(db);
 
 const app = express();
 app.use(express.json());
@@ -30,6 +36,11 @@ app.get('/api/candidates', async (req, res) => {
 
 app.get('/api/card-names', async (req, res) => {
   const names = await listCardNames(db);
+  res.json(names);
+});
+
+app.get('/api/set-names', async (req, res) => {
+  const names = await listSetNames(db);
   res.json(names);
 });
 
@@ -51,26 +62,21 @@ app.patch('/api/candidates/:itemId', async (req, res) => {
 });
 
 app.get('/api/target-cards', async (req, res) => {
-  const rows = await listTargetCards(db);
+  const rows = await listTargetCardsWithStats(db);
   res.json(rows);
 });
 
 app.post('/api/target-cards', async (req, res) => {
-  const { name, set, number, targetPrice, currency } = req.body ?? {};
+  const { name, set, number, currency } = req.body ?? {};
 
   if (!name?.trim() || !set?.trim() || !number?.trim()) {
     return res.status(400).json({ error: 'name, set, and number are required' });
-  }
-  const price = Number(targetPrice);
-  if (!Number.isFinite(price) || price <= 0) {
-    return res.status(400).json({ error: 'targetPrice must be a positive number' });
   }
 
   const card = {
     name: name.trim(),
     set: set.trim(),
     number: number.trim(),
-    targetPrice: price,
     currency: currency?.trim() || 'GBP',
   };
   card.cardName = `${card.name} - ${card.set} - ${card.number}`;
@@ -84,6 +90,28 @@ app.post('/api/target-cards', async (req, res) => {
       return res.status(409).json({ error: 'that card is already on the target list' });
     }
     throw err;
+  }
+});
+
+// Reuses the server's own long-lived db connection — runPipeline() never
+// closes it. A simple in-memory lock is enough protection against double
+// clicks; overlapping with the hourly GitHub Actions cron is lower
+// probability and not solved here.
+let runInProgress = false;
+
+app.post('/api/run-now', async (req, res) => {
+  if (runInProgress) {
+    return res.status(409).json({ error: 'a run is already in progress' });
+  }
+  runInProgress = true;
+  try {
+    await runPipeline(db);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    runInProgress = false;
   }
 });
 

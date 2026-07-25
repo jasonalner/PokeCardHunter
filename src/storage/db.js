@@ -25,6 +25,46 @@ export async function initSchema(db) {
   }
 }
 
+// Brings a database created before the market-average refactor up to the
+// current schema. Idempotent (checks PRAGMA table_info before altering) —
+// safe to call on every process start, both the cron job and the results
+// server. ALTERs are wrapped in try/catch since the check-then-alter isn't
+// atomic across two HTTP round trips to Turso; a concurrent migration from
+// another process could win the race, and that's fine as long as this one
+// doesn't crash on "duplicate column name".
+export async function runMigrations(db) {
+  await db.execute('PRAGMA foreign_keys = ON');
+
+  const targetCardsInfo = await db.execute('PRAGMA table_info(target_cards)');
+  if (targetCardsInfo.rows.some((r) => r.name === 'target_price')) {
+    try {
+      await db.execute('ALTER TABLE target_cards DROP COLUMN target_price');
+    } catch (err) {
+      if (!/no such column|duplicate column/i.test(err.message)) throw err;
+    }
+  }
+
+  const candidatesInfo = await db.execute('PRAGMA table_info(candidates)');
+  if (!candidatesInfo.rows.some((r) => r.name === 'card_set')) {
+    try {
+      await db.execute("ALTER TABLE candidates ADD COLUMN card_set TEXT NOT NULL DEFAULT ''");
+    } catch (err) {
+      if (!/duplicate column/i.test(err.message)) throw err;
+    }
+    // COALESCE guards against a candidate whose card_name has no matching
+    // target_cards row (a target card can be deleted independently) — without
+    // it this UPDATE throws a NOT NULL violation and aborts for every row.
+    await db.execute(`
+      UPDATE candidates
+      SET card_set = COALESCE(
+        (SELECT set_name FROM target_cards WHERE target_cards.card_name = candidates.card_name),
+        ''
+      )
+      WHERE card_set = ''
+    `);
+  }
+}
+
 export async function itemExists(db, itemId) {
   const result = await db.execute({
     sql: 'SELECT 1 FROM candidates WHERE item_id = ?',
@@ -37,12 +77,13 @@ export async function insertCandidate(db, candidate) {
   const now = new Date().toISOString();
   await db.execute({
     sql: `INSERT INTO candidates (
-      item_id, card_name, listing_price, target_price, currency,
+      item_id, card_name, card_set, listing_price, target_price, currency,
       listing_url, found_at, updated_at, verdict, verdict_reasoning, alerted, status
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'found')`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'found')`,
     args: [
       candidate.itemId,
       candidate.cardName,
+      candidate.cardSet,
       candidate.listingPrice,
       candidate.targetPrice,
       candidate.currency,
@@ -75,6 +116,10 @@ export async function listCandidates(db, filters = {}) {
   if (filters.cardName) {
     conditions.push('card_name = ?');
     args.push(filters.cardName);
+  }
+  if (filters.set) {
+    conditions.push('card_set = ?');
+    args.push(filters.set);
   }
   if (filters.status) {
     conditions.push('status = ?');
@@ -119,22 +164,42 @@ export async function listCardNames(db) {
   return result.rows.map((row) => row.card_name);
 }
 
+export async function listSetNames(db) {
+  const result = await db.execute("SELECT DISTINCT card_set FROM candidates WHERE card_set != '' ORDER BY card_set");
+  return result.rows.map((row) => row.card_set);
+}
+
 export async function listTargetCards(db) {
   const result = await db.execute('SELECT * FROM target_cards ORDER BY card_name');
   return result.rows;
 }
 
+// Target cards joined with their latest market_stats snapshot, for the
+// results-screen display. LEFT JOIN so a card with no run yet still appears
+// (with null stats) rather than being silently omitted.
+export async function listTargetCardsWithStats(db) {
+  const result = await db.execute(`
+    SELECT tc.*, ms.sample_count, ms.average_price, ms.min_price, ms.max_price, ms.computed_at
+    FROM target_cards tc
+    LEFT JOIN market_stats ms ON ms.target_card_id = tc.id
+    ORDER BY tc.card_name
+  `);
+  return result.rows;
+}
+
 // Same rows as listTargetCards, reshaped into what searchListings() and
-// matchListing() expect (name/set/number/searchQuery/targetPrice/currency).
+// matchListing() expect (name/set/number/searchQuery/currency). No
+// targetPrice here anymore — that's computed fresh each pipeline run from
+// live listings, not stored on the target card itself.
 export async function listTargetCardsForPipeline(db) {
   const rows = await listTargetCards(db);
   return rows.map((row) => ({
+    id: row.id,
     cardName: row.card_name,
     name: row.name,
     set: row.set_name,
     number: row.number,
     searchQuery: row.search_query,
-    targetPrice: row.target_price,
     currency: row.currency,
   }));
 }
@@ -146,16 +211,40 @@ export async function addTargetCard(db, card) {
   const now = new Date().toISOString();
   await db.execute({
     sql: `INSERT INTO target_cards (
-      card_name, name, set_name, number, search_query, target_price, currency, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      card_name, name, set_name, number, search_query, currency, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
     args: [
       card.cardName,
       card.name,
       card.set,
       card.number,
       card.searchQuery,
-      card.targetPrice,
       card.currency,
+      now,
+    ],
+  });
+}
+
+export async function upsertMarketStats(db, targetCardId, stats) {
+  const now = new Date().toISOString();
+  await db.execute({
+    sql: `INSERT INTO market_stats (
+      target_card_id, sample_count, average_price, min_price, max_price, currency, computed_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(target_card_id) DO UPDATE SET
+      sample_count = excluded.sample_count,
+      average_price = excluded.average_price,
+      min_price = excluded.min_price,
+      max_price = excluded.max_price,
+      currency = excluded.currency,
+      computed_at = excluded.computed_at`,
+    args: [
+      targetCardId,
+      stats.sampleCount,
+      stats.averagePrice,
+      stats.minPrice,
+      stats.maxPrice,
+      stats.currency,
       now,
     ],
   });

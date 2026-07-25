@@ -14,7 +14,7 @@ export async function sendAlert(candidate) {
     body: JSON.stringify({
       topic,
       title: `${candidate.cardName} — £${candidate.listingPrice}`,
-      message: `Target £${candidate.targetPrice} · ${candidate.verdictReasoning ?? ''}`,
+      message: `Avg £${candidate.targetPrice.toFixed(2)} · ${candidate.verdictReasoning ?? ''}`,
       click: candidate.listingUrl,
       priority: 4, // high
     }),

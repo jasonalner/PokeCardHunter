@@ -32,15 +32,26 @@ function titleHasConditionKeyword(title) {
   return CONDITION_KEYWORDS.some((keyword) => lower.includes(keyword));
 }
 
+// Does this listing's title genuinely identify the target card? Used both by
+// matchListing() below and by the pipeline to decide which listings count
+// toward the live market-average computation.
+export function isCardMatch(listing, targetCard) {
+  return titleContainsAll(listing.title, [targetCard.name, targetCard.set, primaryNumberToken(targetCard.number)]);
+}
+
 // listing.condition is eBay's Card Condition aspect value, already used by
 // the poller's aspect_filter to narrow the search — its presence is the
 // primary condition signal. The title keyword check is a secondary,
 // best-effort signal only, not a replacement for it.
+export function isConditionOk(listing) {
+  return Boolean(listing.condition) || titleHasConditionKeyword(listing.title);
+}
+
 export async function matchListing(listing, targetCard, { priceThresholdPct } = {}) {
   const threshold = priceThresholdPct ?? (await loadSettings()).priceThresholdPct;
 
-  const cardMatch = titleContainsAll(listing.title, [targetCard.name, targetCard.set, primaryNumberToken(targetCard.number)]);
-  const conditionOk = Boolean(listing.condition) || titleHasConditionKeyword(listing.title);
+  const cardMatch = isCardMatch(listing, targetCard);
+  const conditionOk = isConditionOk(listing);
   const priceCutoff = targetCard.targetPrice * threshold;
   const priceOk = listing.price < priceCutoff;
 

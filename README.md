@@ -4,28 +4,48 @@ See [pokemon-alert-agent-brief.md](./pokemon-alert-agent-brief.md) for the full 
 
 ## Status
 
-Live and running on schedule. Build order (per brief):
+Live and running on an hourly schedule. Build order (per brief):
 
 1. [x] eBay search module (`src/poller/ebaySearch.js`) — standalone via `npm run poll`
 2. [x] Rule-based matcher (`src/matcher/match.js`) — standalone via `npm run match`
 3. [x] Storage layer (`src/storage/db.js`, `schema.sql`) — hosted on Turso
 4. [x] ntfy notification hook (`src/notifier/notify.js`)
-5. [x] GitHub Actions workflow (`.github/workflows/scan.yml`) — runs every 15 min
+5. [x] GitHub Actions workflow (`.github/workflows/scan.yml`) — runs hourly
 6. [x] Results screen (`src/server/server.js`, `public/`) — `npm run results`, http://localhost:3000
 
 ## Architecture
 
-Two independent pieces run per scheduled tick, no LLM involved anywhere:
+No LLM involved anywhere, and — as of the market-average refactor — no manually
+guessed prices either. Per scheduled tick, for each target card:
 
-1. **Poller** (`src/poller/ebaySearch.js`) — eBay Browse API search + a second
-   per-candidate call for full item detail.
-2. **Matcher** (`src/matcher/match.js`) — deterministic checks against each
-   surviving candidate: card name/set/number all present in the title,
-   condition signal from the eBay aspect (or a title keyword as a fallback),
-   and listing price under `targetPrice × priceThresholdPct` (configurable in
-   `config/settings.json`). All three passing is an alert. Every alert is
-   manually reviewed before acting on it, so false positives here are cheap —
-   this step deliberately doesn't try to be clever about parsing free text.
+1. **Poller** (`src/poller/ebaySearch.js`) — one eBay Browse API search
+   (raw/ungraded only, GB-located, fixed-price/best-offer, junk-title-filtered).
+2. **Market average** (`src/index.js`'s `runPipeline`) — the same search
+   results are filtered to genuinely-matching listings (`isCardMatch` in
+   `src/matcher/match.js`) and turned into a live average/min/max, upserted
+   into the `market_stats` table. This is the reference price used below —
+   there is no manually-entered target price anywhere in the system anymore.
+   It's an average of eBay's **current active listings**, not sold comps
+   (eBay's Marketplace Insights API for that is restricted/approval-only) —
+   worth knowing since asking prices typically run a bit above what things
+   actually sell for.
+   - Each listing is compared against a **leave-one-out** average (excluding
+     its own price from the average it's judged against), so a genuinely
+     cheap listing doesn't partially cancel its own "underpriced" signal.
+   - If fewer than `minSampleSizeForAverage` (default 3, in
+     `config/settings.json`) matching listings turn up, candidates are still
+     recorded — with verdict `insufficient_data` — rather than silently
+     skipped, so a low-liquidity card stays reviewable instead of quietly
+     never alerting. If *zero* matching listings turn up, nothing is recorded
+     for that card that cycle (nothing to reference).
+3. **Matcher** (`src/matcher/match.js`) — deterministic checks against each
+   candidate: card name/set/number in the title, a condition signal (eBay's
+   aspect field or an NM/mint title keyword), and price under
+   `average × priceThresholdPct`. All three passing is an alert. Every alert
+   is manually reviewed before acting on it, so false positives here are
+   cheap — this step deliberately doesn't try to be clever about parsing
+   free text.
+4. **Notifier** (`src/notifier/notify.js`) — ntfy.sh push for `alert` verdicts only.
 
 This keeps the whole stack (eBay API, GitHub Actions, Turso, ntfy) on free
 tiers at this scale, with no ongoing API cost.
@@ -36,19 +56,28 @@ tiers at this scale, with no ongoing API cost.
 http://localhost:3000, reading directly from the same Turso database the
 scheduled pipeline writes to — no separate sync step. Plain HTML/CSS/JS in
 `public/`, no build step or framework, since this is a single-user local
-tool. Filter by card, status, alerted, date range, price range, and minimum
-margin %; click a row's status badge to change it (`found` → `offered` →
-`bought` → `sold` → `flipped`) directly against the database.
+tool. Filter by card, set, status, alerted, date range, price range, and
+minimum margin %; click a row's status badge to change it (`found` →
+`offered` → `bought` → `sold` → `flipped`) directly against the database.
 
 The margin filter defaults to `config/settings.json`'s `priceThresholdPct`
 (the same bar that triggers a push alert), so the page opens showing only
 listings actually worth acting on rather than every candidate ever stored.
 Clear the filter to see everything, including the near-misses.
 
-The "Target Cards" section on the same page lists and adds to the card
-watch list. This also lives in Turso (`target_cards` table), not
-`config/*.json` — a card added here takes effect on the very next scheduled
-run, no commit/push required, since the poller reads the same table.
+The **"Target Cards"** section lists and adds to the card watch list —
+just name/set/number/currency, no price entry at all — and shows each
+card's live market average/range/sample size/last-checked time, sourced
+from `market_stats`. This lives in Turso, not `config/*.json`, so a card
+added here takes effect on the very next scheduled run with no commit/push
+required.
+
+The **"Run Now"** button triggers an immediate pipeline run from the page
+itself (`POST /api/run-now`), for when you don't want to wait for the next
+hourly tick. It's guarded by a simple in-memory lock against double-clicks;
+it isn't guarded against overlapping with the hourly GitHub Actions run,
+which is accepted as a low-probability, undocumented-consequence-free edge
+case rather than solved.
 
 ## Setup
 
@@ -63,8 +92,8 @@ Storage is hosted SQLite via [Turso](https://turso.tech) rather than a local
 file, decided over the alternatives:
 
 - **Commit the `.db` file to git** — ruled out. A binary SQLite file changing
-  every 10–15 min bloats repo history, and it still doesn't answer "what does
-  the results screen read from" without exporting elsewhere.
+  on every scheduled run bloats repo history, and it still doesn't answer
+  "what does the results screen read from" without exporting elsewhere.
 - **`actions/cache`** — ruled out. It's a best-effort *build* cache, not a
   system of record — entries get evicted after 7 days unused, and losing
   purchase-tracking history to an eviction would be a bad time.
