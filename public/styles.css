@@ -62,6 +62,34 @@ button.accent {
   color: var(--orange);
 }
 
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+button.tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--text-dim);
+  padding: 0.6rem 1rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+button.tab:hover {
+  color: var(--text);
+  opacity: 1;
+}
+
+button.tab.active {
+  color: var(--purple);
+  border-bottom-color: var(--purple);
+}
+
 .filters {
   display: flex;
   flex-wrap: wrap;

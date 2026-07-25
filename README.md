@@ -56,9 +56,11 @@ tiers at this scale, with no ongoing API cost.
 http://localhost:3000, reading directly from the same Turso database the
 scheduled pipeline writes to — no separate sync step. Plain HTML/CSS/JS in
 `public/`, no build step or framework, since this is a single-user local
-tool. Filter by card, set, status, alerted, date range, price range, and
-minimum margin %; click a row's status badge to change it (`found` →
-`offered` → `bought` → `sold` → `flipped`) directly against the database.
+tool. A tab bar (All / Found / Offered / Bought / Sold / Flipped) is the
+primary status view; filter further by card, set, alerted, date range,
+price range, and minimum margin %. Click a row's status badge to change it
+directly against the database — the row moves to its new tab immediately,
+since a status change triggers a fresh fetch rather than patching in place.
 
 The margin filter defaults to `config/settings.json`'s `priceThresholdPct`
 (the same bar that triggers a push alert), so the page opens showing only

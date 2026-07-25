@@ -69,6 +69,15 @@
     </div>
   </details>
 
+  <div class="tabs" id="status-tabs">
+    <button type="button" class="tab active" data-status="">All</button>
+    <button type="button" class="tab" data-status="found">Found</button>
+    <button type="button" class="tab" data-status="offered">Offered</button>
+    <button type="button" class="tab" data-status="bought">Bought</button>
+    <button type="button" class="tab" data-status="sold">Sold</button>
+    <button type="button" class="tab" data-status="flipped">Flipped</button>
+  </div>
+
   <section class="filters" id="filters">
     <div class="field">
       <label for="filter-card">Card</label>
@@ -77,17 +86,6 @@
     <div class="field">
       <label for="filter-set">Set</label>
       <select id="filter-set"><option value="">All sets</option></select>
-    </div>
-    <div class="field">
-      <label for="filter-status">Status</label>
-      <select id="filter-status">
-        <option value="">All statuses</option>
-        <option value="found">Found</option>
-        <option value="offered">Offered</option>
-        <option value="bought">Bought</option>
-        <option value="sold">Sold</option>
-        <option value="flipped">Flipped</option>
-      </select>
     </div>
     <div class="field">
       <label for="filter-alerted">Alerted</label>

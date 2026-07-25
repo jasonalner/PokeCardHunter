@@ -1,7 +1,7 @@
 const els = {
   card: document.getElementById('filter-card'),
   set: document.getElementById('filter-set'),
-  status: document.getElementById('filter-status'),
+  tabs: document.getElementById('status-tabs'),
   alerted: document.getElementById('filter-alerted'),
   dateFrom: document.getElementById('filter-date-from'),
   dateTo: document.getElementById('filter-date-to'),
@@ -37,6 +37,7 @@ const STATUSES = ['found', 'offered', 'bought', 'sold', 'flipped'];
 let goodMarginPct = 0;
 let editingTargetCardId = null;
 let resultsCache = [];
+let activeStatus = ''; // '' = All tab
 let sortState = { key: 'found_at', dir: 'desc' }; // matches the API's default ORDER BY
 
 const SORT_ACCESSORS = {
@@ -114,7 +115,7 @@ function buildQuery() {
   const params = new URLSearchParams();
   if (els.card.value) params.set('cardName', els.card.value);
   if (els.set.value) params.set('set', els.set.value);
-  if (els.status.value) params.set('status', els.status.value);
+  if (activeStatus) params.set('status', activeStatus);
   if (els.alerted.value) params.set('alerted', els.alerted.value);
   if (els.dateFrom.value) params.set('dateFrom', els.dateFrom.value);
   if (els.dateTo.value) params.set('dateTo', els.dateTo.value);
@@ -323,17 +324,14 @@ els.body.addEventListener('change', async (e) => {
     });
     if (!res.ok) throw new Error(`update failed: ${res.status}`);
 
-    select.classList.remove(previousStatus);
-    select.classList.add(newStatus);
-    select.dataset.currentStatus = newStatus;
-
-    const cached = resultsCache.find((r) => r.item_id === itemId);
-    if (cached) cached.status = newStatus;
+    // Reload rather than patch in place: on a specific status tab, a card
+    // whose status just changed should disappear from this tab and (if
+    // still relevant) show up under its new one.
+    await loadResults();
   } catch (err) {
     console.error(err);
     select.value = previousStatus;
     alert('Failed to update status — please try again.');
-  } finally {
     select.disabled = false;
   }
 });
@@ -371,11 +369,25 @@ els.runNow.addEventListener('click', async () => {
   }
 });
 
+function setActiveTab(status) {
+  activeStatus = status;
+  for (const btn of els.tabs.querySelectorAll('.tab')) {
+    btn.classList.toggle('active', btn.dataset.status === status);
+  }
+}
+
+els.tabs.addEventListener('click', (e) => {
+  const btn = e.target.closest('.tab');
+  if (!btn) return;
+  setActiveTab(btn.dataset.status);
+  loadResults();
+});
+
 els.apply.addEventListener('click', loadResults);
 els.clear.addEventListener('click', () => {
   els.card.value = '';
   els.set.value = '';
-  els.status.value = '';
+  setActiveTab('');
   els.alerted.value = '';
   els.dateFrom.value = '';
   els.dateTo.value = '';
