@@ -301,7 +301,8 @@ els.targetCardsBody.addEventListener('click', async (e) => {
       if (editingTargetCardId === card.id) exitEditMode();
       await loadTargetCards();
     } catch (err) {
-      alert('Failed to delete — please try again.');
+      console.error(err);
+      alert(`Failed to delete: ${err.message}`);
       deleteBtn.disabled = false;
     }
   }
@@ -331,7 +332,7 @@ els.body.addEventListener('change', async (e) => {
   } catch (err) {
     console.error(err);
     select.value = previousStatus;
-    alert('Failed to update status — please try again.');
+    alert(`Failed to update status: ${err.message}`);
     select.disabled = false;
   }
 });
