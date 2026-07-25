@@ -12,17 +12,29 @@ async function loadSettings() {
   return JSON.parse(raw);
 }
 
-function titleContainsAll(title, keywords) {
-  const lower = title.toLowerCase();
-  return keywords
-    .filter(Boolean)
-    .every((keyword) => lower.includes(String(keyword).toLowerCase()));
+// Collapses punctuation differences (hyphens vs spaces, colons, extra
+// whitespace, casing) that otherwise break substring matching even when a
+// title is obviously the right card — e.g. seller writes "XY Ancient
+// Origins", target card is stored as "Xy-Ancient Origins".
+function normalize(str) {
+  return String(str).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
-// Sellers routinely drop the "/GG70" (total-in-subset) half of a card number
-// and just write the card's own number, e.g. "GG10" instead of "GG10/GG70" —
-// missing that match is a false negative, which matters more here than the
-// small extra false-positive risk from a looser number check.
+function titleContainsPhrase(normalizedTitle, phrase) {
+  return Boolean(phrase) && normalizedTitle.includes(normalize(phrase));
+}
+
+// Padding both sides with spaces makes this a whole-token check, not a raw
+// substring one — without it, number "21" would wrongly match inside "121/98"
+// (a different card) once normalize() turns the "/" into a space.
+function titleContainsToken(paddedNormalizedTitle, token) {
+  return Boolean(token) && paddedNormalizedTitle.includes(` ${normalize(token)} `);
+}
+
+// Sellers routinely drop the "/98" (total-in-set) half of a card number and
+// just write the card's own number, e.g. "21" instead of "21/98" — missing
+// that match is a false negative, which matters more here than the small
+// extra false-positive risk from a looser number check.
 function primaryNumberToken(number) {
   return number ? String(number).split('/')[0] : number;
 }
@@ -36,7 +48,12 @@ function titleHasConditionKeyword(title) {
 // matchListing() below and by the pipeline to decide which listings count
 // toward the live market-average computation.
 export function isCardMatch(listing, targetCard) {
-  return titleContainsAll(listing.title, [targetCard.name, targetCard.set, primaryNumberToken(targetCard.number)]);
+  const title = ` ${normalize(listing.title)} `;
+  return (
+    titleContainsPhrase(title, targetCard.name) &&
+    titleContainsPhrase(title, targetCard.set) &&
+    titleContainsToken(title, primaryNumberToken(targetCard.number))
+  );
 }
 
 // listing.condition is eBay's Card Condition aspect value, already used by

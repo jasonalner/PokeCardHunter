@@ -57,12 +57,21 @@ export async function runPipeline(db) {
         ? (sum - listing.price) / (sampleCount - 1)
         : averagePrice;
 
+      // A listing that doesn't even match the card gets a normal no_alert,
+      // same as the hasReliableAverage path would give it via matchListing()
+      // — it must not be labeled insufficient_data just because the *card's*
+      // sample size happens to be thin this cycle. Without this check every
+      // raw search result (right card or not) was getting the same
+      // "low data" label, which is how a wrong-numbered card slipped into
+      // results for a target it doesn't match at all.
       const result = hasReliableAverage
         ? await matchListing(listing, { ...targetCard, targetPrice: referencePrice })
-        : {
-            verdict: 'insufficient_data',
-            reasoning: `Only ${sampleCount} matching listing(s) this scan — need ${minSampleSizeForAverage}+ for a confident average (avg so far: £${averagePrice.toFixed(2)})`,
-          };
+        : isEligible
+          ? {
+              verdict: 'insufficient_data',
+              reasoning: `Only ${sampleCount} matching listing(s) this scan — need ${minSampleSizeForAverage}+ for a confident average (avg so far: £${averagePrice.toFixed(2)})`,
+            }
+          : { verdict: 'no_alert', reasoning: 'title missing card name/set/number' };
 
       await insertCandidate(db, {
         itemId: listing.itemId,
