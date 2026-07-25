@@ -131,6 +131,39 @@ button.secondary {
   border: 1px solid var(--border);
 }
 
+.actions-cell {
+  white-space: nowrap;
+}
+
+button.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--purple);
+  font-weight: 600;
+  font-size: 0.8rem;
+  cursor: pointer;
+  margin-right: 0.75rem;
+}
+
+button.link-button:last-child {
+  margin-right: 0;
+}
+
+button.link-button.delete-target-card {
+  color: var(--orange);
+}
+
+button.link-button:hover {
+  text-decoration: underline;
+  opacity: 1;
+}
+
+button.link-button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
 .results-count {
   color: var(--text-dim);
   margin: 0 0 0.75rem;

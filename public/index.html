@@ -33,6 +33,7 @@
             <th>Range</th>
             <th>Listings</th>
             <th>Last Checked</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody id="target-cards-body"></tbody>
@@ -60,7 +61,8 @@
           </select>
         </div>
         <div class="field field-actions">
-          <button type="submit">Add Card</button>
+          <button type="submit" id="add-card-submit">Add Card</button>
+          <button type="button" id="add-card-cancel" class="secondary" hidden>Cancel</button>
         </div>
       </form>
       <p id="add-card-error" class="form-error" hidden></p>

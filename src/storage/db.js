@@ -225,6 +225,24 @@ export async function addTargetCard(db, card) {
   });
 }
 
+// Same UNIQUE-constraint-throws-409 contract as addTargetCard.
+export async function updateTargetCard(db, id, card) {
+  await db.execute({
+    sql: `UPDATE target_cards
+          SET card_name = ?, name = ?, set_name = ?, number = ?, search_query = ?, currency = ?
+          WHERE id = ?`,
+    args: [card.cardName, card.name, card.set, card.number, card.searchQuery, card.currency, id],
+  });
+}
+
+// market_stats.target_card_id has ON DELETE CASCADE, so its row for this
+// card goes with it. Historical candidates are left alone — they're a text
+// snapshot (card_name/card_set), not foreign-keyed to target_cards, and
+// deleting a target card should stop future scanning, not erase history.
+export async function deleteTargetCard(db, id) {
+  await db.execute({ sql: 'DELETE FROM target_cards WHERE id = ?', args: [id] });
+}
+
 export async function upsertMarketStats(db, targetCardId, stats) {
   const now = new Date().toISOString();
   await db.execute({

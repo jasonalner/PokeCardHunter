@@ -21,6 +21,8 @@ const els = {
   newCardSet: document.getElementById('new-card-set'),
   newCardNumber: document.getElementById('new-card-number'),
   newCardCurrency: document.getElementById('new-card-currency'),
+  addCardSubmit: document.getElementById('add-card-submit'),
+  addCardCancel: document.getElementById('add-card-cancel'),
   runNow: document.getElementById('run-now'),
   runNowStatus: document.getElementById('run-now-status'),
 };
@@ -33,6 +35,7 @@ const STATUSES = ['found', 'offered', 'bought', 'sold', 'flipped'];
 // results screen's default view and the push-notification bar agree, rather
 // than a second hardcoded number that could drift out of sync.
 let goodMarginPct = 0;
+let editingTargetCardId = null;
 
 async function loadSettings() {
   const res = await fetch('/api/settings');
@@ -163,26 +166,53 @@ function renderTargetCardRows(rows) {
       <td>${range}</td>
       <td>${hasStats ? row.sample_count : '—'}</td>
       <td>${hasStats ? formatDate(row.computed_at) : '—'}</td>
+      <td class="actions-cell">
+        <button type="button" class="link-button edit-target-card" data-id="${row.id}">Edit</button>
+        <button type="button" class="link-button delete-target-card" data-id="${row.id}">Delete</button>
+      </td>
     `;
     els.targetCardsBody.appendChild(tr);
   }
 }
 
+let targetCardsCache = [];
+
 async function loadTargetCards() {
   const res = await fetch('/api/target-cards');
-  renderTargetCardRows(await res.json());
+  targetCardsCache = await res.json();
+  renderTargetCardRows(targetCardsCache);
+}
+
+function enterEditMode(card) {
+  editingTargetCardId = card.id;
+  els.newCardName.value = card.name;
+  els.newCardSet.value = card.set_name;
+  els.newCardNumber.value = card.number;
+  els.newCardCurrency.value = card.currency;
+  els.addCardSubmit.textContent = 'Update Card';
+  els.addCardCancel.hidden = false;
+  els.newCardName.focus();
+}
+
+function exitEditMode() {
+  editingTargetCardId = null;
+  els.addCardForm.reset();
+  els.newCardCurrency.value = 'GBP';
+  els.addCardSubmit.textContent = 'Add Card';
+  els.addCardCancel.hidden = true;
 }
 
 els.addCardForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   els.addCardError.hidden = true;
+  els.addCardSubmit.disabled = true;
 
-  const submitButton = els.addCardForm.querySelector('button[type="submit"]');
-  submitButton.disabled = true;
+  const isEditing = editingTargetCardId !== null;
+  const url = isEditing ? `/api/target-cards/${editingTargetCardId}` : '/api/target-cards';
 
   try {
-    const res = await fetch('/api/target-cards', {
-      method: 'POST',
+    const res = await fetch(url, {
+      method: isEditing ? 'PATCH' : 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: els.newCardName.value,
@@ -194,14 +224,44 @@ els.addCardForm.addEventListener('submit', async (e) => {
     const body = await res.json();
     if (!res.ok) throw new Error(body.error || `request failed: ${res.status}`);
 
-    els.addCardForm.reset();
-    els.newCardCurrency.value = 'GBP';
+    exitEditMode();
     await loadTargetCards();
   } catch (err) {
     els.addCardError.textContent = err.message;
     els.addCardError.hidden = false;
   } finally {
-    submitButton.disabled = false;
+    els.addCardSubmit.disabled = false;
+  }
+});
+
+els.addCardCancel.addEventListener('click', () => {
+  exitEditMode();
+  els.addCardError.hidden = true;
+});
+
+els.targetCardsBody.addEventListener('click', async (e) => {
+  const editBtn = e.target.closest('.edit-target-card');
+  if (editBtn) {
+    const card = targetCardsCache.find((c) => String(c.id) === editBtn.dataset.id);
+    if (card) enterEditMode(card);
+    return;
+  }
+
+  const deleteBtn = e.target.closest('.delete-target-card');
+  if (deleteBtn) {
+    const card = targetCardsCache.find((c) => String(c.id) === deleteBtn.dataset.id);
+    if (!card || !confirm(`Remove "${card.card_name}" from the target list? This won't delete its past candidate history.`)) return;
+
+    deleteBtn.disabled = true;
+    try {
+      const res = await fetch(`/api/target-cards/${deleteBtn.dataset.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(`delete failed: ${res.status}`);
+      if (editingTargetCardId === card.id) exitEditMode();
+      await loadTargetCards();
+    } catch (err) {
+      alert('Failed to delete — please try again.');
+      deleteBtn.disabled = false;
+    }
   }
 });
 

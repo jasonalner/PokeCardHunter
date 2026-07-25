@@ -65,12 +65,14 @@ The margin filter defaults to `config/settings.json`'s `priceThresholdPct`
 listings actually worth acting on rather than every candidate ever stored.
 Clear the filter to see everything, including the near-misses.
 
-The **"Target Cards"** section lists and adds to the card watch list —
-just name/set/number/currency, no price entry at all — and shows each
-card's live market average/range/sample size/last-checked time, sourced
-from `market_stats`. This lives in Turso, not `config/*.json`, so a card
-added here takes effect on the very next scheduled run with no commit/push
-required.
+The **"Target Cards"** section lists, adds, edits, and deletes cards on the
+watch list — just name/set/number/currency, no price entry at all — and
+shows each card's live market average/range/sample size/last-checked time,
+sourced from `market_stats`. This lives in Turso, not `config/*.json`, so a
+change here takes effect on the very next scheduled run with no commit/push
+required. Deleting a target card stops it being scanned but leaves its past
+candidate history alone (candidates are a text snapshot, not foreign-keyed
+to the target card that produced them).
 
 The **"Run Now"** button triggers an immediate pipeline run from the page
 itself (`POST /api/run-now`), for when you don't want to wait for the next

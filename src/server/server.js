@@ -17,6 +17,8 @@ import {
   VALID_STATUSES,
   listTargetCardsWithStats,
   addTargetCard,
+  updateTargetCard,
+  deleteTargetCard,
 } from '../storage/db.js';
 import { runPipeline } from '../index.js';
 
@@ -66,13 +68,11 @@ app.get('/api/target-cards', async (req, res) => {
   res.json(rows);
 });
 
-app.post('/api/target-cards', async (req, res) => {
-  const { name, set, number, currency } = req.body ?? {};
-
+function parseCardFromBody(body) {
+  const { name, set, number, currency } = body ?? {};
   if (!name?.trim() || !set?.trim() || !number?.trim()) {
-    return res.status(400).json({ error: 'name, set, and number are required' });
+    return { error: 'name, set, and number are required' };
   }
-
   const card = {
     name: name.trim(),
     set: set.trim(),
@@ -81,6 +81,12 @@ app.post('/api/target-cards', async (req, res) => {
   };
   card.cardName = `${card.name} - ${card.set} - ${card.number}`;
   card.searchQuery = `${card.name} ${card.number} ${card.set}`;
+  return { card };
+}
+
+app.post('/api/target-cards', async (req, res) => {
+  const { card, error } = parseCardFromBody(req.body);
+  if (error) return res.status(400).json({ error });
 
   try {
     await addTargetCard(db, card);
@@ -91,6 +97,26 @@ app.post('/api/target-cards', async (req, res) => {
     }
     throw err;
   }
+});
+
+app.patch('/api/target-cards/:id', async (req, res) => {
+  const { card, error } = parseCardFromBody(req.body);
+  if (error) return res.status(400).json({ error });
+
+  try {
+    await updateTargetCard(db, req.params.id, card);
+    res.json({ ok: true });
+  } catch (err) {
+    if (err.code === 'SQLITE_CONSTRAINT') {
+      return res.status(409).json({ error: 'that card is already on the target list' });
+    }
+    throw err;
+  }
+});
+
+app.delete('/api/target-cards/:id', async (req, res) => {
+  await deleteTargetCard(db, req.params.id);
+  res.json({ ok: true });
 });
 
 // Reuses the server's own long-lived db connection — runPipeline() never
