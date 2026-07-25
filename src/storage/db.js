@@ -63,6 +63,14 @@ export async function runMigrations(db) {
       WHERE card_set = ''
     `);
   }
+
+  if (!targetCardsInfo.rows.some((r) => r.name === 'set_aliases')) {
+    try {
+      await db.execute("ALTER TABLE target_cards ADD COLUMN set_aliases TEXT NOT NULL DEFAULT '[]'");
+    } catch (err) {
+      if (!/duplicate column/i.test(err.message)) throw err;
+    }
+  }
 }
 
 export async function itemExists(db, itemId) {
@@ -174,6 +182,25 @@ export async function listTargetCards(db) {
   return result.rows;
 }
 
+// Single target card in the same shape listTargetCardsForPipeline() uses —
+// for triggering an immediate rescan of just one card right after it's
+// added or edited, rather than waiting for the next scheduled run.
+export async function getTargetCardForPipeline(db, id) {
+  const result = await db.execute({ sql: 'SELECT * FROM target_cards WHERE id = ?', args: [id] });
+  const row = result.rows[0];
+  if (!row) return null;
+  return {
+    id: row.id,
+    cardName: row.card_name,
+    name: row.name,
+    set: row.set_name,
+    number: row.number,
+    searchQuery: row.search_query,
+    currency: row.currency,
+    setAliases: JSON.parse(row.set_aliases),
+  };
+}
+
 // Target cards joined with their latest market_stats snapshot, for the
 // results-screen display. LEFT JOIN so a card with no run yet still appears
 // (with null stats) rather than being silently omitted.
@@ -184,12 +211,12 @@ export async function listTargetCardsWithStats(db) {
     LEFT JOIN market_stats ms ON ms.target_card_id = tc.id
     ORDER BY tc.card_name
   `);
-  return result.rows;
+  return result.rows.map((row) => ({ ...row, set_aliases: JSON.parse(row.set_aliases) }));
 }
 
 // Same rows as listTargetCards, reshaped into what searchListings() and
-// matchListing() expect (name/set/number/searchQuery/currency). No
-// targetPrice here anymore — that's computed fresh each pipeline run from
+// matchListing() expect (name/set/number/searchQuery/currency/setAliases).
+// No targetPrice here anymore — that's computed fresh each pipeline run from
 // live listings, not stored on the target card itself.
 export async function listTargetCardsForPipeline(db) {
   const rows = await listTargetCards(db);
@@ -201,18 +228,19 @@ export async function listTargetCardsForPipeline(db) {
     number: row.number,
     searchQuery: row.search_query,
     currency: row.currency,
+    setAliases: JSON.parse(row.set_aliases),
   }));
 }
 
 // Throws with a libSQL "UNIQUE constraint failed" message if the same
 // name/set/number combo already exists — callers should surface that as a
-// 409, not a generic 500.
+// 409, not a generic 500. card.setAliases is an array of strings.
 export async function addTargetCard(db, card) {
   const now = new Date().toISOString();
-  await db.execute({
+  const result = await db.execute({
     sql: `INSERT INTO target_cards (
-      card_name, name, set_name, number, search_query, currency, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      card_name, name, set_name, number, search_query, currency, set_aliases, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       card.cardName,
       card.name,
@@ -220,18 +248,20 @@ export async function addTargetCard(db, card) {
       card.number,
       card.searchQuery,
       card.currency,
+      JSON.stringify(card.setAliases ?? []),
       now,
     ],
   });
+  return Number(result.lastInsertRowid);
 }
 
 // Same UNIQUE-constraint-throws-409 contract as addTargetCard.
 export async function updateTargetCard(db, id, card) {
   await db.execute({
     sql: `UPDATE target_cards
-          SET card_name = ?, name = ?, set_name = ?, number = ?, search_query = ?, currency = ?
+          SET card_name = ?, name = ?, set_name = ?, number = ?, search_query = ?, currency = ?, set_aliases = ?
           WHERE id = ?`,
-    args: [card.cardName, card.name, card.set, card.number, card.searchQuery, card.currency, id],
+    args: [card.cardName, card.name, card.set, card.number, card.searchQuery, card.currency, JSON.stringify(card.setAliases ?? []), id],
   });
 }
 

@@ -20,6 +20,7 @@ const els = {
   newCardName: document.getElementById('new-card-name'),
   newCardSet: document.getElementById('new-card-set'),
   newCardNumber: document.getElementById('new-card-number'),
+  newCardAliases: document.getElementById('new-card-aliases'),
   newCardCurrency: document.getElementById('new-card-currency'),
   addCardSubmit: document.getElementById('add-card-submit'),
   addCardCancel: document.getElementById('add-card-cancel'),
@@ -199,10 +200,12 @@ function renderTargetCardRows(rows) {
       ? `${formatMoney(row.min_price, row.currency)}–${formatMoney(row.max_price, row.currency)}`
       : '—';
 
+    const aliasTitle = row.set_aliases?.length ? `also matches: ${row.set_aliases.join(', ')}` : '';
+
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${escapeHtml(row.name)}</td>
-      <td>${escapeHtml(row.set_name)}</td>
+      <td title="${escapeHtml(aliasTitle)}">${escapeHtml(row.set_name)}${row.set_aliases?.length ? ' *' : ''}</td>
       <td>${escapeHtml(row.number)}</td>
       <td>${hasStats ? formatMoney(row.average_price, row.currency) : 'no data yet'}</td>
       <td>${range}</td>
@@ -230,6 +233,7 @@ function enterEditMode(card) {
   els.newCardName.value = card.name;
   els.newCardSet.value = card.set_name;
   els.newCardNumber.value = card.number;
+  els.newCardAliases.value = (card.set_aliases ?? []).join(', ');
   els.newCardCurrency.value = card.currency;
   els.addCardSubmit.textContent = 'Update Card';
   els.addCardCancel.hidden = false;
@@ -248,6 +252,11 @@ els.addCardForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   els.addCardError.hidden = true;
   els.addCardSubmit.disabled = true;
+  const originalLabel = els.addCardSubmit.textContent;
+  // The server now does an immediate rescan of just this card before
+  // responding, so the average shown is never stale — that also means this
+  // takes a few real seconds (an eBay search), not an instant round trip.
+  els.addCardSubmit.textContent = 'Saving…';
 
   const isEditing = editingTargetCardId !== null;
   const url = isEditing ? `/api/target-cards/${editingTargetCardId}` : '/api/target-cards';
@@ -260,6 +269,7 @@ els.addCardForm.addEventListener('submit', async (e) => {
         name: els.newCardName.value,
         set: els.newCardSet.value,
         number: els.newCardNumber.value,
+        setAliases: els.newCardAliases.value,
         currency: els.newCardCurrency.value,
       }),
     });
@@ -267,8 +277,9 @@ els.addCardForm.addEventListener('submit', async (e) => {
     if (!res.ok) throw new Error(body.error || `request failed: ${res.status}`);
 
     exitEditMode();
-    await loadTargetCards();
+    await Promise.all([loadTargetCards(), loadResults(), loadCardNames(), loadSetNames()]);
   } catch (err) {
+    els.addCardSubmit.textContent = originalLabel;
     els.addCardError.textContent = err.message;
     els.addCardError.hidden = false;
   } finally {

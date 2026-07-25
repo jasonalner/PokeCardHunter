@@ -43,6 +43,10 @@ CREATE TABLE IF NOT EXISTS target_cards (
   search_query  TEXT NOT NULL,
   currency      TEXT NOT NULL DEFAULT 'GBP',
   created_at    TEXT NOT NULL,
+  -- Alternate set-name spellings sellers actually use (e.g. "Mega Evolution",
+  -- "Mega Evolution Promo" alongside the primary "MEP"), JSON array of
+  -- strings. A title matches if it contains set_name OR any alias.
+  set_aliases   TEXT NOT NULL DEFAULT '[]',
   UNIQUE (name, set_name, number)
 );
 

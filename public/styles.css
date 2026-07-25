@@ -138,6 +138,10 @@ input:focus {
   gap: 0.5rem;
 }
 
+.field-wide input {
+  min-width: 260px;
+}
+
 button {
   background: var(--purple);
   color: #0f0f0f;

@@ -8,9 +8,89 @@ import { searchListings } from './poller/ebaySearch.js';
 import { matchListing, isCardMatch } from './matcher/match.js';
 import { sendAlert } from './notifier/notify.js';
 
-async function loadSettings() {
+export async function loadSettings() {
   const raw = await readFile(new URL('../config/settings.json', import.meta.url), 'utf8');
   return JSON.parse(raw);
+}
+
+// Scans a single target card: recomputes its market average and inserts any
+// new candidates. Exported separately from runPipeline() so the results
+// server can call it for just one card right after it's added or edited —
+// otherwise the displayed average stays stale until the next scheduled run.
+export async function scanTargetCard(db, targetCard, minSampleSizeForAverage) {
+  const listings = await searchListings(targetCard); // one call, reused below for both stats and candidates
+
+  // Averaging pool: card-match only, not also requiring a condition signal.
+  // Requiring both would push sampleCount to 0 far more often for
+  // lower-liquidity cards, silently defeating the point of this feature for
+  // exactly the cards where manual pricing was previously a guess anyway.
+  // Per-listing alert verdicts still require isConditionOk, via the
+  // unchanged matchListing() call below.
+  const eligible = listings.filter((l) => isCardMatch(l, targetCard));
+  const sampleCount = eligible.length;
+  const sum = eligible.reduce((s, l) => s + l.price, 0);
+  const averagePrice = sampleCount > 0 ? sum / sampleCount : null;
+  const minPrice = sampleCount > 0 ? Math.min(...eligible.map((l) => l.price)) : null;
+  const maxPrice = sampleCount > 0 ? Math.max(...eligible.map((l) => l.price)) : null;
+
+  await upsertMarketStats(db, targetCard.id, {
+    sampleCount, averagePrice, minPrice, maxPrice, currency: targetCard.currency,
+  });
+
+  if (sampleCount === 0) return; // nothing to reference this cycle for this card
+
+  const hasReliableAverage = sampleCount >= minSampleSizeForAverage;
+
+  for (const listing of listings) {
+    if (await itemExists(db, listing.itemId)) continue;
+
+    // A listing whose title doesn't even name this card isn't a near-miss
+    // worth reviewing — it's noise from eBay's own loose search relevance.
+    // Its numeric "margin" against this card's average would be meaningless
+    // (and often looks deceptively great, since unrelated cheap listings —
+    // stickers, other cards, damaged copies — have no reason to be priced
+    // anywhere near this card's real value). Skip it entirely rather than
+    // storing it as a reviewable candidate.
+    if (!isCardMatch(listing, targetCard)) continue;
+
+    // Leave-one-out: exclude the listing's own price from its comparison
+    // average. Without this, a genuinely underpriced listing partially
+    // cancels its own "underpriced" signal by dragging the average down —
+    // worst exactly when the sample is smallest and the deal most real.
+    const referencePrice = sampleCount > 1
+      ? (sum - listing.price) / (sampleCount - 1)
+      : averagePrice;
+
+    const result = hasReliableAverage
+      ? await matchListing(listing, { ...targetCard, targetPrice: referencePrice })
+      : {
+          verdict: 'insufficient_data',
+          reasoning: `Only ${sampleCount} matching listing(s) this scan — need ${minSampleSizeForAverage}+ for a confident average (avg so far: £${averagePrice.toFixed(2)})`,
+        };
+
+    await insertCandidate(db, {
+      itemId: listing.itemId,
+      cardName: targetCard.cardName,
+      cardSet: targetCard.set,
+      listingPrice: listing.price,
+      targetPrice: referencePrice,
+      currency: targetCard.currency ?? 'GBP',
+      listingUrl: listing.url,
+      verdict: result.verdict,
+      verdictReasoning: result.reasoning,
+      alerted: result.verdict === 'alert' ? 1 : 0,
+    });
+
+    if (result.verdict === 'alert') {
+      await sendAlert({
+        cardName: targetCard.cardName,
+        listingPrice: listing.price,
+        targetPrice: referencePrice,
+        listingUrl: listing.url,
+        verdictReasoning: result.reasoning,
+      });
+    }
+  }
 }
 
 // Takes an already-open db connection and never closes it — the caller owns
@@ -22,79 +102,7 @@ export async function runPipeline(db) {
   const targetCards = await listTargetCardsForPipeline(db);
 
   for (const targetCard of targetCards) {
-    const listings = await searchListings(targetCard); // one call, reused below for both stats and candidates
-
-    // Averaging pool: card-match only, not also requiring a condition
-    // signal. Requiring both would push sampleCount to 0 far more often for
-    // lower-liquidity cards, silently defeating the point of this feature
-    // for exactly the cards where manual pricing was previously a guess
-    // anyway. Per-listing alert verdicts still require isConditionOk, via
-    // the unchanged matchListing() call below.
-    const eligible = listings.filter((l) => isCardMatch(l, targetCard));
-    const sampleCount = eligible.length;
-    const sum = eligible.reduce((s, l) => s + l.price, 0);
-    const averagePrice = sampleCount > 0 ? sum / sampleCount : null;
-    const minPrice = sampleCount > 0 ? Math.min(...eligible.map((l) => l.price)) : null;
-    const maxPrice = sampleCount > 0 ? Math.max(...eligible.map((l) => l.price)) : null;
-
-    await upsertMarketStats(db, targetCard.id, {
-      sampleCount, averagePrice, minPrice, maxPrice, currency: targetCard.currency,
-    });
-
-    if (sampleCount === 0) continue; // nothing to reference this cycle for this card
-
-    const hasReliableAverage = sampleCount >= minSampleSizeForAverage;
-
-    for (const listing of listings) {
-      if (await itemExists(db, listing.itemId)) continue;
-
-      // A listing whose title doesn't even name this card isn't a near-miss
-      // worth reviewing — it's noise from eBay's own loose search relevance.
-      // Its numeric "margin" against this card's average would be meaningless
-      // (and often looks deceptively great, since unrelated cheap listings —
-      // stickers, other cards, damaged copies — have no reason to be priced
-      // anywhere near this card's real value). Skip it entirely rather than
-      // storing it as a reviewable candidate.
-      if (!isCardMatch(listing, targetCard)) continue;
-
-      // Leave-one-out: exclude the listing's own price from its comparison
-      // average. Without this, a genuinely underpriced listing partially
-      // cancels its own "underpriced" signal by dragging the average down —
-      // worst exactly when the sample is smallest and the deal most real.
-      const referencePrice = sampleCount > 1
-        ? (sum - listing.price) / (sampleCount - 1)
-        : averagePrice;
-
-      const result = hasReliableAverage
-        ? await matchListing(listing, { ...targetCard, targetPrice: referencePrice })
-        : {
-            verdict: 'insufficient_data',
-            reasoning: `Only ${sampleCount} matching listing(s) this scan — need ${minSampleSizeForAverage}+ for a confident average (avg so far: £${averagePrice.toFixed(2)})`,
-          };
-
-      await insertCandidate(db, {
-        itemId: listing.itemId,
-        cardName: targetCard.cardName,
-        cardSet: targetCard.set,
-        listingPrice: listing.price,
-        targetPrice: referencePrice,
-        currency: targetCard.currency ?? 'GBP',
-        listingUrl: listing.url,
-        verdict: result.verdict,
-        verdictReasoning: result.reasoning,
-        alerted: result.verdict === 'alert' ? 1 : 0,
-      });
-
-      if (result.verdict === 'alert') {
-        await sendAlert({
-          cardName: targetCard.cardName,
-          listingPrice: listing.price,
-          targetPrice: referencePrice,
-          listingUrl: listing.url,
-          verdictReasoning: result.reasoning,
-        });
-      }
-    }
+    await scanTargetCard(db, targetCard, minSampleSizeForAverage);
   }
 }
 

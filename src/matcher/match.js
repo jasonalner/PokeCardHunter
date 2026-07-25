@@ -49,11 +49,24 @@ function titleHasConditionKeyword(title) {
 // toward the live market-average computation.
 export function isCardMatch(listing, targetCard) {
   const title = ` ${normalize(listing.title)} `;
-  return (
-    titleContainsPhrase(title, targetCard.name) &&
-    titleContainsPhrase(title, targetCard.set) &&
-    titleContainsToken(title, primaryNumberToken(targetCard.number))
-  );
+  if (!titleContainsPhrase(title, targetCard.name)) return false;
+
+  const numberToken = primaryNumberToken(targetCard.number);
+  // targetCard.set is the primary/canonical name (used to build the eBay
+  // search query); setAliases covers other spellings sellers actually use
+  // for the same set (e.g. "MEP" vs "Mega Evolution Promo") — a title
+  // matches if it contains the primary name OR any alias.
+  const setCandidates = [targetCard.set, ...(targetCard.setAliases ?? [])].filter(Boolean);
+
+  const standardMatch = setCandidates.some((set) => titleContainsPhrase(title, set)) && titleContainsToken(title, numberToken);
+  // Sellers often fuse a short set abbreviation directly against the number
+  // with no separator — "MEP 027" becomes "MEP027" — which the checks above
+  // correctly don't treat as containing "027" as its own word. Catch that
+  // pattern explicitly rather than loosening the general number check (which
+  // would reintroduce numbers matching inside unrelated longer numbers).
+  const fusedMatch = setCandidates.some((set) => titleContainsToken(title, `${set}${numberToken}`));
+
+  return standardMatch || fusedMatch;
 }
 
 // listing.condition is eBay's Card Condition aspect value, already used by

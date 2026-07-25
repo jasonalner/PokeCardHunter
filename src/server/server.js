@@ -19,8 +19,9 @@ import {
   addTargetCard,
   updateTargetCard,
   deleteTargetCard,
+  getTargetCardForPipeline,
 } from '../storage/db.js';
-import { runPipeline } from '../index.js';
+import { runPipeline, scanTargetCard, loadSettings } from '../index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const db = openDb();
@@ -69,7 +70,7 @@ app.get('/api/target-cards', async (req, res) => {
 });
 
 function parseCardFromBody(body) {
-  const { name, set, number, currency } = body ?? {};
+  const { name, set, number, currency, setAliases } = body ?? {};
   if (!name?.trim() || !set?.trim() || !number?.trim()) {
     return { error: 'name, set, and number are required' };
   }
@@ -78,10 +79,26 @@ function parseCardFromBody(body) {
     set: set.trim(),
     number: number.trim(),
     currency: currency?.trim() || 'GBP',
+    // Frontend sends a single comma-separated string; alternate spellings
+    // sellers use for the same set (e.g. "MEP" vs "Mega Evolution Promo").
+    setAliases: (setAliases ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
   };
   card.cardName = `${card.name} - ${card.set} - ${card.number}`;
   card.searchQuery = `${card.name} ${card.number} ${card.set}`;
   return { card };
+}
+
+// Recomputes market_stats (and scans for new candidates) for just this one
+// card, synchronously, so the results screen reflects the new name/set/
+// number/aliases immediately rather than showing a stale average until the
+// next scheduled run.
+async function rescanOne(targetCardId) {
+  const targetCard = await getTargetCardForPipeline(db, targetCardId);
+  const { minSampleSizeForAverage } = await loadSettings();
+  await scanTargetCard(db, targetCard, minSampleSizeForAverage);
 }
 
 app.post('/api/target-cards', async (req, res) => {
@@ -89,7 +106,8 @@ app.post('/api/target-cards', async (req, res) => {
   if (error) return res.status(400).json({ error });
 
   try {
-    await addTargetCard(db, card);
+    const id = await addTargetCard(db, card);
+    await rescanOne(id);
     res.status(201).json({ ok: true });
   } catch (err) {
     if (err.code === 'SQLITE_CONSTRAINT') {
@@ -105,6 +123,7 @@ app.patch('/api/target-cards/:id', async (req, res) => {
 
   try {
     await updateTargetCard(db, req.params.id, card);
+    await rescanOne(req.params.id);
     res.json({ ok: true });
   } catch (err) {
     if (err.code === 'SQLITE_CONSTRAINT') {

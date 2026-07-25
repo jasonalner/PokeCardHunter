@@ -72,14 +72,25 @@ listings actually worth acting on rather than every candidate ever stored.
 Clear the filter to see everything, including the near-misses.
 
 The **"Target Cards"** section lists, adds, edits, and deletes cards on the
-watch list — just name/set/number/currency, no price entry at all — and
-shows each card's live market average/range/sample size/last-checked time,
-sourced from `market_stats`. This lives in Turso, not `config/*.json`, so a
-change here takes effect on the very next scheduled run with no commit/push
-required. Deleting a target card stops it being scanned and clears its
-unacted-on `found` candidates (no longer of interest once it's off the
-watch list), but anything you've moved to `offered`/`bought`/`sold`/
-`flipped` is real tracked history and is never touched by a delete.
+watch list — name/set/number/currency plus optional **set aliases**
+(comma-separated) for sets sellers spell inconsistently, e.g. `set: "MEP"`
+with aliases `"Mega Evolution, Mega Evolution Promo"` — a listing matches if
+it contains the primary set name OR any alias. Be careful aliasing to the
+name of a genuinely different real set (e.g. don't alias a promo set to
+"Evolutions" just because sellers sometimes mislabel it that way — that's
+the name of an actual, different 2016 set and would match the wrong card).
+
+Adding or editing a card triggers an immediate rescan of just that card
+(a few real seconds — it's a live eBay search) before the request returns,
+so the shown market average is never stale after a change — no need to
+wait for the next scheduled run. Shows each card's live market
+average/range/sample size/last-checked time, sourced from `market_stats`.
+This all lives in Turso, not `config/*.json`, so a change here takes effect
+on the very next scheduled run too, no commit/push required. Deleting a
+target card stops it being scanned and clears its unacted-on `found`
+candidates (no longer of interest once it's off the watch list), but
+anything you've moved to `offered`/`bought`/`sold`/`flipped` is real
+tracked history and is never touched by a delete.
 
 The **"Run Now"** button triggers an immediate pipeline run from the page
 itself (`POST /api/run-now`), for when you don't want to wait for the next
