@@ -4,7 +4,20 @@
 
 import 'dotenv/config';
 
-const JUNK_TITLE_TERMS = ['lot', 'bundle', 'job lot', 'collection', 'proxy', 'custom', 'fake', 'replica'];
+// "binder" catches binder art inserts/accessory products that mention a
+// card by name/number without being the card itself — a real listing
+// slipped through as a genuine match: "Haunter MEP027 ... Extended Binder
+// Art Inserts". Not adding the more generic "insert" — that word also
+// legitimately describes real insert-rarity trading cards.
+const JUNK_TITLE_TERMS = ['lot', 'bundle', 'job lot', 'collection', 'proxy', 'custom', 'fake', 'replica', 'binder'];
+
+// eBay's own structured condition field is unreliable for graded-vs-raw too,
+// not just NM-vs-not: a real listing titled "...PSA 10 Ace 10 Contender,
+// Gem Mint..." had condition: "Ungraded" from eBay itself, and slipped
+// through the condition-field-only graded filter, single-handedly dragging
+// a market average from ~£65 to ~£120. Title text is the fallback signal.
+const GRADING_KEYWORDS = ['psa', 'cgc', 'bgs', 'ace grade', 'ace 10', 'ace 9', 'beckett', 'gem mint'];
+
 const CATEGORY_ID = '183454'; // Individual Trading Card Games
 const MARKETPLACE_ID = 'EBAY_GB';
 const DEFAULT_MIN_SELLER_FEEDBACK_SCORE = Number(process.env.MIN_SELLER_FEEDBACK_SCORE ?? 10);
@@ -15,6 +28,11 @@ const EBAY_BROWSE_URL = 'https://api.ebay.com/buy/browse/v1';
 function isJunkTitle(title) {
   const lower = title.toLowerCase();
   return JUNK_TITLE_TERMS.some((term) => lower.includes(term));
+}
+
+function looksGradedFromTitle(title) {
+  const lower = title.toLowerCase();
+  return GRADING_KEYWORDS.some((term) => lower.includes(term));
 }
 
 function stripHtml(html) {
@@ -95,8 +113,10 @@ export async function searchListings(targetCard, { minSellerFeedbackScore = DEFA
     .filter((item) => Number.isFinite(Number(item.price?.value)))
     // v1 scope is raw/ungraded cards only — graded (PSA/CGC/BGS/ACE) is a
     // different pricing model entirely and out of scope per the brief.
-    // eBay's structured condition field cleanly says Graded vs Ungraded.
-    .filter((item) => item.condition !== 'Graded')
+    // Checking both: eBay's structured condition field usually says Graded,
+    // but not always (see GRADING_KEYWORDS above) — title text is the
+    // fallback for when eBay's own field is wrong.
+    .filter((item) => item.condition !== 'Graded' && !looksGradedFromTitle(item.title))
     .map((item) => ({
       itemId: item.itemId,
       title: item.title,
