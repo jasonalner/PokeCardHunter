@@ -194,6 +194,25 @@ button.link-button:disabled {
   font-weight: 600;
 }
 
+.results-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.results-table th.sortable:hover {
+  color: var(--text);
+}
+
+.results-table th.sorted {
+  color: var(--purple);
+}
+
+.sort-indicator {
+  display: inline-block;
+  width: 0.9em;
+  margin-left: 0.2rem;
+}
+
 .results-table tbody tr:hover {
   background: var(--surface-2);
 }

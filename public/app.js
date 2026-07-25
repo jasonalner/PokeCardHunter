@@ -36,6 +36,17 @@ const STATUSES = ['found', 'offered', 'bought', 'sold', 'flipped'];
 // than a second hardcoded number that could drift out of sync.
 let goodMarginPct = 0;
 let editingTargetCardId = null;
+let resultsCache = [];
+let sortState = { key: 'found_at', dir: 'desc' }; // matches the API's default ORDER BY
+
+const SORT_ACCESSORS = {
+  card_name: (row) => row.card_name.toLowerCase(),
+  listing_price: (row) => row.listing_price,
+  target_price: (row) => row.target_price,
+  margin: (row) => marginPct(row.target_price, row.listing_price),
+  found_at: (row) => row.found_at,
+  status: (row) => STATUSES.indexOf(row.status),
+};
 
 async function loadSettings() {
   const res = await fetch('/api/settings');
@@ -144,9 +155,39 @@ function renderRows(rows) {
   }
 }
 
+function sortedResults() {
+  const accessor = SORT_ACCESSORS[sortState.key];
+  return [...resultsCache].sort((a, b) => {
+    const av = accessor(a);
+    const bv = accessor(b);
+    if (av < bv) return sortState.dir === 'asc' ? -1 : 1;
+    if (av > bv) return sortState.dir === 'asc' ? 1 : -1;
+    return 0;
+  });
+}
+
+function updateSortIndicators() {
+  for (const th of els.table.querySelectorAll('th.sortable')) {
+    const indicator = th.querySelector('.sort-indicator');
+    if (th.dataset.sort === sortState.key) {
+      th.classList.add('sorted');
+      indicator.textContent = sortState.dir === 'asc' ? '▲' : '▼';
+    } else {
+      th.classList.remove('sorted');
+      indicator.textContent = '';
+    }
+  }
+}
+
+function renderSortedResults() {
+  updateSortIndicators();
+  renderRows(sortedResults());
+}
+
 async function loadResults() {
   const res = await fetch(`/api/candidates?${buildQuery()}`);
-  renderRows(await res.json());
+  resultsCache = await res.json();
+  renderSortedResults();
 }
 
 function renderTargetCardRows(rows) {
@@ -285,6 +326,9 @@ els.body.addEventListener('change', async (e) => {
     select.classList.remove(previousStatus);
     select.classList.add(newStatus);
     select.dataset.currentStatus = newStatus;
+
+    const cached = resultsCache.find((r) => r.item_id === itemId);
+    if (cached) cached.status = newStatus;
   } catch (err) {
     console.error(err);
     select.value = previousStatus;
@@ -292,6 +336,19 @@ els.body.addEventListener('change', async (e) => {
   } finally {
     select.disabled = false;
   }
+});
+
+els.table.querySelector('thead').addEventListener('click', (e) => {
+  const th = e.target.closest('th.sortable');
+  if (!th) return;
+
+  const key = th.dataset.sort;
+  if (sortState.key === key) {
+    sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortState = { key, dir: key === 'found_at' ? 'desc' : 'asc' };
+  }
+  renderSortedResults();
 });
 
 els.runNow.addEventListener('click', async () => {
