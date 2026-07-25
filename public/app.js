@@ -292,7 +292,7 @@ els.targetCardsBody.addEventListener('click', async (e) => {
   const deleteBtn = e.target.closest('.delete-target-card');
   if (deleteBtn) {
     const card = targetCardsCache.find((c) => String(c.id) === deleteBtn.dataset.id);
-    if (!card || !confirm(`Remove "${card.card_name}" from the target list? This won't delete its past candidate history.`)) return;
+    if (!card || !confirm(`Remove "${card.card_name}" from the target list? This clears its unacted-on "Found" results, but keeps anything you've marked offered/bought/sold/flipped.`)) return;
 
     deleteBtn.disabled = true;
     try {

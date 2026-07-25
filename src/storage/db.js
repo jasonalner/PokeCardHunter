@@ -236,10 +236,20 @@ export async function updateTargetCard(db, id, card) {
 }
 
 // market_stats.target_card_id has ON DELETE CASCADE, so its row for this
-// card goes with it. Historical candidates are left alone — they're a text
-// snapshot (card_name/card_set), not foreign-keyed to target_cards, and
-// deleting a target card should stop future scanning, not erase history.
+// card goes with it. Candidates still sitting at status 'found' (never
+// acted on) are no longer of interest once the card is off the watch list,
+// so they're cleared too. Anything with a different status — offered,
+// bought, sold, flipped — is real tracked history and must never be
+// deleted here, regardless of what happens to the target card.
 export async function deleteTargetCard(db, id) {
+  const { rows } = await db.execute({ sql: 'SELECT card_name FROM target_cards WHERE id = ?', args: [id] });
+  const cardName = rows[0]?.card_name;
+  if (cardName) {
+    await db.execute({
+      sql: "DELETE FROM candidates WHERE card_name = ? AND status = 'found'",
+      args: [cardName],
+    });
+  }
   await db.execute({ sql: 'DELETE FROM target_cards WHERE id = ?', args: [id] });
 }
 

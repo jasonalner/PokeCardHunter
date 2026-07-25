@@ -48,30 +48,29 @@ export async function runPipeline(db) {
     for (const listing of listings) {
       if (await itemExists(db, listing.itemId)) continue;
 
-      const isEligible = isCardMatch(listing, targetCard);
+      // A listing whose title doesn't even name this card isn't a near-miss
+      // worth reviewing — it's noise from eBay's own loose search relevance.
+      // Its numeric "margin" against this card's average would be meaningless
+      // (and often looks deceptively great, since unrelated cheap listings —
+      // stickers, other cards, damaged copies — have no reason to be priced
+      // anywhere near this card's real value). Skip it entirely rather than
+      // storing it as a reviewable candidate.
+      if (!isCardMatch(listing, targetCard)) continue;
+
       // Leave-one-out: exclude the listing's own price from its comparison
       // average. Without this, a genuinely underpriced listing partially
       // cancels its own "underpriced" signal by dragging the average down —
       // worst exactly when the sample is smallest and the deal most real.
-      const referencePrice = isEligible && sampleCount > 1
+      const referencePrice = sampleCount > 1
         ? (sum - listing.price) / (sampleCount - 1)
         : averagePrice;
 
-      // A listing that doesn't even match the card gets a normal no_alert,
-      // same as the hasReliableAverage path would give it via matchListing()
-      // — it must not be labeled insufficient_data just because the *card's*
-      // sample size happens to be thin this cycle. Without this check every
-      // raw search result (right card or not) was getting the same
-      // "low data" label, which is how a wrong-numbered card slipped into
-      // results for a target it doesn't match at all.
       const result = hasReliableAverage
         ? await matchListing(listing, { ...targetCard, targetPrice: referencePrice })
-        : isEligible
-          ? {
-              verdict: 'insufficient_data',
-              reasoning: `Only ${sampleCount} matching listing(s) this scan — need ${minSampleSizeForAverage}+ for a confident average (avg so far: £${averagePrice.toFixed(2)})`,
-            }
-          : { verdict: 'no_alert', reasoning: 'title missing card name/set/number' };
+        : {
+            verdict: 'insufficient_data',
+            reasoning: `Only ${sampleCount} matching listing(s) this scan — need ${minSampleSizeForAverage}+ for a confident average (avg so far: £${averagePrice.toFixed(2)})`,
+          };
 
       await insertCandidate(db, {
         itemId: listing.itemId,

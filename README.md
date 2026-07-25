@@ -38,6 +38,10 @@ guessed prices either. Per scheduled tick, for each target card:
      skipped, so a low-liquidity card stays reviewable instead of quietly
      never alerting. If *zero* matching listings turn up, nothing is recorded
      for that card that cycle (nothing to reference).
+   - A listing whose title doesn't match the target card at all (`isCardMatch`
+     false) is skipped entirely, never stored as a candidate — it's noise
+     from eBay's own loose search relevance, not a near-miss worth reviewing,
+     and its "margin" against a card it isn't would be meaningless anyway.
 3. **Matcher** (`src/matcher/match.js`) — deterministic checks against each
    candidate: card name/set/number in the title, a condition signal (eBay's
    aspect field or an NM/mint title keyword), and price under
@@ -72,9 +76,10 @@ watch list — just name/set/number/currency, no price entry at all — and
 shows each card's live market average/range/sample size/last-checked time,
 sourced from `market_stats`. This lives in Turso, not `config/*.json`, so a
 change here takes effect on the very next scheduled run with no commit/push
-required. Deleting a target card stops it being scanned but leaves its past
-candidate history alone (candidates are a text snapshot, not foreign-keyed
-to the target card that produced them).
+required. Deleting a target card stops it being scanned and clears its
+unacted-on `found` candidates (no longer of interest once it's off the
+watch list), but anything you've moved to `offered`/`bought`/`sold`/
+`flipped` is real tracked history and is never touched by a delete.
 
 The **"Run Now"** button triggers an immediate pipeline run from the page
 itself (`POST /api/run-now`), for when you don't want to wait for the next
