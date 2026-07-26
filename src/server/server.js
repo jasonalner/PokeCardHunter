@@ -96,7 +96,13 @@ function parseCardFromBody(body) {
       .filter(Boolean),
   };
   card.cardName = `${card.name} - ${card.set} - ${card.number}`;
-  card.searchQuery = `${card.name} ${card.number} ${card.set}`;
+  // Deliberately excludes the set name: eBay's own keyword relevance engine
+  // treats it as a near-required term, cutting the raw result pool by more
+  // than half in testing even though plenty of genuine listings word the set
+  // differently or omit it entirely from the title. Set matching still
+  // happens locally via isCardMatch/setAliases, which is far more forgiving
+  // of real-world title wording than eBay's own search text matching is.
+  card.searchQuery = `${card.name} ${card.number}`;
   return { card };
 }
 

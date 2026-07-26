@@ -9,11 +9,15 @@ import 'dotenv/config';
 // slipped through as a genuine match: "Haunter MEP027 ... Extended Binder
 // Art Inserts". Not adding the more generic "insert" — that word also
 // legitimately describes real insert-rarity trading cards.
-// "upc" catches Ultra Premium Collection multi-card promo bundles — a real
-// listing titled "...UPC SWSH260, SWSH261, SWSH262 Full Set" (three cards,
-// not one) matched as a single-card SWSH262 listing and, priced as a bundle,
-// dragged that card's average up by roughly 2x.
-const JUNK_TITLE_TERMS = ['lot', 'bundle', 'job lot', 'collection', 'proxy', 'custom', 'fake', 'replica', 'binder', 'upc'];
+// Deliberately no "upc"/"collection" term: some cards (e.g. Charizard
+// SWSH262) are genuinely chase cards from an Ultra Premium Collection box,
+// and real sellers describe the single card that way — those words alone
+// don't distinguish a single card from the multi-card box it came from.
+// Multi-card UPC/box bundle listings are instead caught in the matcher
+// (isCardMatch's mentionsMultiplePromoNumbers check) by naming more than
+// one sibling promo number in the same title, which held up as a reliable
+// signal across every real bundle listing checked — title wording didn't.
+const JUNK_TITLE_TERMS = ['lot', 'bundle', 'job lot', 'proxy', 'custom', 'fake', 'replica', 'binder', 'fan art'];
 
 // eBay's own structured condition field is unreliable for graded-vs-raw too,
 // not just NM-vs-not: a real listing titled "...PSA 10 Ace 10 Contender,
@@ -108,7 +112,10 @@ export async function searchListings(targetCard, { minSellerFeedbackScore = DEFA
     category_ids: CATEGORY_ID,
     filter: 'itemLocationCountry:GB,buyingOptions:{FIXED_PRICE|BEST_OFFER}',
     aspect_filter: `categoryId:${CATEGORY_ID},Card Condition:{Near Mint or Better}`,
-    limit: '50',
+    // 200 is the Browse API's max per page — same single API call either
+    // way, no extra quota cost, it just stops silently truncating the
+    // result pool for cards with more than 50 matching listings.
+    limit: '200',
   });
 
   return (data.itemSummaries ?? [])

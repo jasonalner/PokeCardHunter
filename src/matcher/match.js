@@ -67,6 +67,25 @@ function isPromoStyleNumber(numberToken) {
   return /^[a-zA-Z]+\s?\d+$/.test(numberToken);
 }
 
+// A title naming more than one number from the same promo family (e.g.
+// "SWSH260, SWSH261, SWSH262") is very likely a multi-card bundle/box
+// listing, not a single-card listing for just this one — a real £5,085
+// "Case of 4 Sealed Boxes" listing named all three SWSH Black Star Promo
+// numbers together and would otherwise be treated as a single-card match,
+// massively distorting the market average. Sellers don't reliably use any
+// particular bundle-indicating word ("sealed", "full set", "case" all show
+// up, none consistently), so a title keyword can't catch this — multiple
+// sibling numbers in the same title is the one signal that held up across
+// every real bundle listing checked.
+function mentionsMultiplePromoNumbers(paddedNormalizedTitle, numberToken) {
+  const prefixMatch = /^([a-zA-Z]+)\d+$/.exec(numberToken);
+  if (!prefixMatch) return false;
+  const prefix = prefixMatch[1].toLowerCase();
+  const matches = paddedNormalizedTitle.match(new RegExp(`\\b${prefix}\\s?\\d+\\b`, 'g')) ?? [];
+  const distinctNumbers = new Set(matches.map((m) => m.replace(/\s+/g, '')));
+  return distinctNumbers.size > 1;
+}
+
 // Does this listing's title genuinely identify the target card? Used both by
 // matchListing() below and by the pipeline to decide which listings count
 // toward the live market-average computation.
@@ -79,6 +98,11 @@ export function isCardMatch(listing, targetCard) {
   if (!titleContainsToken(title, targetCard.name)) return false;
 
   const numberToken = primaryNumberToken(targetCard.number);
+
+  if (isPromoStyleNumber(numberToken) && mentionsMultiplePromoNumbers(title, numberToken)) {
+    return false;
+  }
+
   const numberForms = numberSpacingVariants(numberToken);
   const numberMatch = numberForms.some((form) => titleContainsToken(title, form));
 
