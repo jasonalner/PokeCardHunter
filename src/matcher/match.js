@@ -57,31 +57,49 @@ function titleHasConditionKeyword(title) {
   return CONDITION_KEYWORDS.some((keyword) => lower.includes(keyword));
 }
 
+// A letter-prefix number (promo-style: "SWSH260", "SVP057"...) is close to
+// globally unique on its own — the prefix already encodes set-specific
+// context, so requiring the set text too just costs real matches when
+// sellers omit or word the set differently. A plain mainline number
+// ("125/197"-style) restarts from 1 in every set and is genuinely
+// ambiguous without set to disambiguate — keep requiring it there.
+function isPromoStyleNumber(numberToken) {
+  return /^[a-zA-Z]+\s?\d+$/.test(numberToken);
+}
+
 // Does this listing's title genuinely identify the target card? Used both by
 // matchListing() below and by the pipeline to decide which listings count
 // toward the live market-average computation.
 export function isCardMatch(listing, targetCard) {
   const title = ` ${normalize(listing.title)} `;
-  if (!titleContainsPhrase(title, targetCard.name)) return false;
+
+  // Token-bounded, not a raw substring — "Charizard V" must not match
+  // inside "Charizard VMAX" or "Charizard VSTAR" (different, usually far
+  // more valuable cards), which an unbounded substring check would allow.
+  if (!titleContainsToken(title, targetCard.name)) return false;
 
   const numberToken = primaryNumberToken(targetCard.number);
+  const numberForms = numberSpacingVariants(numberToken);
+  const numberMatch = numberForms.some((form) => titleContainsToken(title, form));
+
   // targetCard.set is the primary/canonical name (used to build the eBay
   // search query); setAliases covers other spellings sellers actually use
   // for the same set (e.g. "MEP" vs "Mega Evolution Promo") — a title
   // matches if it contains the primary name OR any alias.
   const setCandidates = [targetCard.set, ...(targetCard.setAliases ?? [])].filter(Boolean);
 
-  const numberForms = numberSpacingVariants(numberToken);
-  const standardMatch = setCandidates.some((set) => titleContainsPhrase(title, set))
-    && numberForms.some((form) => titleContainsToken(title, form));
-  // Sellers often fuse a short set abbreviation directly against the number
-  // with no separator — "MEP 027" becomes "MEP027" — which the checks above
-  // correctly don't treat as containing "027" as its own word. Catch that
-  // pattern explicitly rather than loosening the general number check (which
-  // would reintroduce numbers matching inside unrelated longer numbers).
-  const fusedMatch = setCandidates.some((set) => titleContainsToken(title, `${set}${numberToken}`));
+  if (numberMatch) {
+    if (isPromoStyleNumber(numberToken)) return true;
+    if (setCandidates.some((set) => titleContainsPhrase(title, set))) return true;
+  }
 
-  return standardMatch || fusedMatch;
+  // Sellers often fuse a short set abbreviation directly against the number
+  // with no separator — "MEP 027" becomes "MEP027" — which the standalone
+  // number-token check above correctly doesn't treat as containing "027" as
+  // its own word. This is an independent fallback, not gated behind
+  // numberMatch above, since the whole point is the number never appears on
+  // its own in these titles.
+  return setCandidates.some((set) => titleContainsToken(title, `${set}${numberToken}`));
 }
 
 // listing.condition is eBay's Card Condition aspect value, already used by

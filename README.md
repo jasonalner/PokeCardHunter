@@ -43,12 +43,21 @@ guessed prices either. Per scheduled tick, for each target card:
      from eBay's own loose search relevance, not a near-miss worth reviewing,
      and its "margin" against a card it isn't would be meaningless anyway.
 3. **Matcher** (`src/matcher/match.js`) — deterministic checks against each
-   candidate: card name/set/number in the title, a condition signal (eBay's
+   candidate: card name/number/set in the title, a condition signal (eBay's
    aspect field or an NM/mint title keyword), and price under
    `average × priceThresholdPct`. All three passing is an alert. Every alert
    is manually reviewed before acting on it, so false positives here are
    cheap — this step deliberately doesn't try to be clever about parsing
    free text.
+   - Name and number are matched space/boundary-bound, not as raw
+     substrings — `"Charizard V"` must not match inside `"Charizard VMAX"`
+     (a materially different, usually far more valuable card).
+   - **Set is only required for plain mainline numbers** (`"125/197"`-style,
+     which restart from 1 every set and are genuinely ambiguous without
+     it). For letter-prefix promo numbers (`"SWSH260"`, `"MEP027"`-style),
+     set is not required at all — the prefix already makes the number close
+     to globally unique, and requiring set text too just loses real
+     listings when sellers omit or misname it.
 4. **Notifier** (`src/notifier/notify.js`) — ntfy.sh push for `alert` verdicts only.
 
 This keeps the whole stack (eBay API, GitHub Actions, Turso, ntfy) on free
