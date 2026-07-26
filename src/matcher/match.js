@@ -39,6 +39,19 @@ function primaryNumberToken(number) {
   return number ? String(number).split('/')[0] : number;
 }
 
+// For a letter-prefix numbering style (promo numbers like "SWSH260"),
+// sellers are inconsistent about the space — "SWSH260" and "SWSH 260" both
+// show up for the same card. Whatever form the number is stored in, this
+// returns the other one too, so either is accepted.
+function numberSpacingVariants(numberToken) {
+  const variants = [numberToken];
+  const fused = /^([a-zA-Z]+)(\d+)$/.exec(numberToken);
+  if (fused) variants.push(`${fused[1]} ${fused[2]}`);
+  const spaced = /^([a-zA-Z]+)\s+(\d+)$/.exec(numberToken);
+  if (spaced) variants.push(`${spaced[1]}${spaced[2]}`);
+  return variants;
+}
+
 function titleHasConditionKeyword(title) {
   const lower = title.toLowerCase();
   return CONDITION_KEYWORDS.some((keyword) => lower.includes(keyword));
@@ -58,7 +71,9 @@ export function isCardMatch(listing, targetCard) {
   // matches if it contains the primary name OR any alias.
   const setCandidates = [targetCard.set, ...(targetCard.setAliases ?? [])].filter(Boolean);
 
-  const standardMatch = setCandidates.some((set) => titleContainsPhrase(title, set)) && titleContainsToken(title, numberToken);
+  const numberForms = numberSpacingVariants(numberToken);
+  const standardMatch = setCandidates.some((set) => titleContainsPhrase(title, set))
+    && numberForms.some((form) => titleContainsToken(title, form));
   // Sellers often fuse a short set abbreviation directly against the number
   // with no separator — "MEP 027" becomes "MEP027" — which the checks above
   // correctly don't treat as containing "027" as its own word. Catch that
