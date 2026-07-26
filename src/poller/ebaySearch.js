@@ -9,7 +9,11 @@ import 'dotenv/config';
 // slipped through as a genuine match: "Haunter MEP027 ... Extended Binder
 // Art Inserts". Not adding the more generic "insert" — that word also
 // legitimately describes real insert-rarity trading cards.
-const JUNK_TITLE_TERMS = ['lot', 'bundle', 'job lot', 'collection', 'proxy', 'custom', 'fake', 'replica', 'binder'];
+// "upc" catches Ultra Premium Collection multi-card promo bundles — a real
+// listing titled "...UPC SWSH260, SWSH261, SWSH262 Full Set" (three cards,
+// not one) matched as a single-card SWSH262 listing and, priced as a bundle,
+// dragged that card's average up by roughly 2x.
+const JUNK_TITLE_TERMS = ['lot', 'bundle', 'job lot', 'collection', 'proxy', 'custom', 'fake', 'replica', 'binder', 'upc'];
 
 // eBay's own structured condition field is unreliable for graded-vs-raw too,
 // not just NM-vs-not: a real listing titled "...PSA 10 Ace 10 Contender,
