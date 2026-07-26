@@ -1,8 +1,8 @@
 import 'dotenv/config';
 import { readFile } from 'node:fs/promises';
 import {
-  openDb, initSchema, runMigrations, itemExists, insertCandidate,
-  listTargetCardsForPipeline, upsertMarketStats,
+  openDb, initSchema, runMigrations, getCandidateByItemId, updateCandidateFromRecheck,
+  insertCandidate, listTargetCardsForPipeline, upsertMarketStats,
 } from './storage/db.js';
 import { searchListings } from './poller/ebaySearch.js';
 import { matchListing, isCardMatch } from './matcher/match.js';
@@ -42,7 +42,16 @@ export async function scanTargetCard(db, targetCard, minSampleSizeForAverage) {
   const hasReliableAverage = sampleCount >= minSampleSizeForAverage;
 
   for (const listing of listings) {
-    if (await itemExists(db, listing.itemId)) continue;
+    const existing = await getCandidateByItemId(db, listing.itemId);
+
+    // Once a candidate has moved past 'found' (offered/bought/sold/flipped)
+    // it's tracked purchase history, not a live listing to keep re-checking
+    // — never touch it here, same rule as everywhere else in this app.
+    // If it's still 'found' and the price hasn't moved, there's nothing new
+    // to record.
+    if (existing && (existing.status !== 'found' || existing.listing_price === listing.price)) {
+      continue;
+    }
 
     // A listing whose title doesn't even name this card isn't a near-miss
     // worth reviewing — it's noise from eBay's own loose search relevance.
@@ -50,8 +59,9 @@ export async function scanTargetCard(db, targetCard, minSampleSizeForAverage) {
     // (and often looks deceptively great, since unrelated cheap listings —
     // stickers, other cards, damaged copies — have no reason to be priced
     // anywhere near this card's real value). Skip it entirely rather than
-    // storing it as a reviewable candidate.
-    if (!isCardMatch(listing, targetCard)) continue;
+    // storing it as a reviewable candidate. Not re-checked for an existing
+    // row below — its title hasn't changed since it was first matched.
+    if (!existing && !isCardMatch(listing, targetCard)) continue;
 
     // Leave-one-out: exclude the listing's own price from its comparison
     // average. Without this, a genuinely underpriced listing partially
@@ -67,6 +77,29 @@ export async function scanTargetCard(db, targetCard, minSampleSizeForAverage) {
           verdict: 'insufficient_data',
           reasoning: `Only ${sampleCount} matching listing(s) this scan — need ${minSampleSizeForAverage}+ for a confident average (avg so far: £${averagePrice.toFixed(2)})`,
         };
+
+    if (existing) {
+      await updateCandidateFromRecheck(db, listing.itemId, {
+        listingPrice: listing.price,
+        targetPrice: referencePrice,
+        verdict: result.verdict,
+        verdictReasoning: result.reasoning,
+        alerted: existing.alerted || (result.verdict === 'alert' ? 1 : 0),
+      });
+
+      // Only notify on a genuine new crossing into 'alert' — not on every
+      // price tick while it stays alerted, and not on a flip back out.
+      if (result.verdict === 'alert' && existing.verdict !== 'alert') {
+        await sendAlert({
+          cardName: targetCard.cardName,
+          listingPrice: listing.price,
+          targetPrice: referencePrice,
+          listingUrl: listing.url,
+          verdictReasoning: result.reasoning,
+        });
+      }
+      continue;
+    }
 
     await insertCandidate(db, {
       itemId: listing.itemId,
@@ -101,8 +134,27 @@ export async function runPipeline(db) {
   const { minSampleSizeForAverage } = await loadSettings();
   const targetCards = await listTargetCardsForPipeline(db);
 
+  // One card's failure (a transient eBay error, a rate-limit blip) must not
+  // cost every other card its scan this cycle — each is isolated, and
+  // failures are collected rather than surfaced immediately, so a bad card
+  // doesn't starve the rest of the list. Still thrown as an aggregate error
+  // at the end so a failing run doesn't look identical to a clean one (CLI
+  // exit code, Run Now's response) — successful cards' data is already
+  // written by that point regardless.
+  const failures = [];
   for (const targetCard of targetCards) {
-    await scanTargetCard(db, targetCard, minSampleSizeForAverage);
+    try {
+      await scanTargetCard(db, targetCard, minSampleSizeForAverage);
+    } catch (err) {
+      console.error(`[${targetCard.cardName}] scan failed, continuing with remaining cards: ${err.message}`);
+      failures.push({ cardName: targetCard.cardName, error: err.message });
+    }
+  }
+
+  if (failures.length > 0) {
+    throw new Error(
+      `${failures.length}/${targetCards.length} card(s) failed to scan: ${failures.map((f) => f.cardName).join(', ')}`
+    );
   }
 }
 

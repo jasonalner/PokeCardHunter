@@ -73,12 +73,34 @@ export async function runMigrations(db) {
   }
 }
 
-export async function itemExists(db, itemId) {
+export async function getCandidateByItemId(db, itemId) {
   const result = await db.execute({
-    sql: 'SELECT 1 FROM candidates WHERE item_id = ?',
+    sql: 'SELECT * FROM candidates WHERE item_id = ?',
     args: [itemId],
   });
-  return result.rows.length > 0;
+  return result.rows[0] ?? null;
+}
+
+// Re-checks an already-stored, still-'found' candidate against this run's
+// current price/verdict. Only touches listing_price/target_price/verdict/
+// alerted/updated_at — status and found_at (the original discovery time)
+// are left alone.
+export async function updateCandidateFromRecheck(db, itemId, candidate) {
+  await db.execute({
+    sql: `UPDATE candidates SET
+      listing_price = ?, target_price = ?, verdict = ?, verdict_reasoning = ?,
+      alerted = ?, updated_at = ?
+      WHERE item_id = ?`,
+    args: [
+      candidate.listingPrice,
+      candidate.targetPrice,
+      candidate.verdict,
+      candidate.verdictReasoning,
+      candidate.alerted,
+      new Date().toISOString(),
+      itemId,
+    ],
+  });
 }
 
 export async function insertCandidate(db, candidate) {
