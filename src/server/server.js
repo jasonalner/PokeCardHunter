@@ -55,6 +55,15 @@ app.get('/api/settings', async (req, res) => {
   res.json(JSON.parse(raw));
 });
 
+// Canonical English Pokémon TCG set names, for autocomplete + fuzzy "did
+// you mean" suggestions on the Set field — not validation, since real
+// listings (and this tool's own aliasing) also use informal abbreviations
+// like "MEP" that deliberately aren't in this list.
+app.get('/api/pokemon-sets', async (req, res) => {
+  const raw = await readFile(path.join(__dirname, '../../config/pokemon-sets.json'), 'utf8');
+  res.json(JSON.parse(raw));
+});
+
 app.patch('/api/candidates/:itemId', async (req, res) => {
   const { status } = req.body ?? {};
   if (!VALID_STATUSES.includes(status)) {

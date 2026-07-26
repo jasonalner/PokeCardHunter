@@ -46,7 +46,9 @@
         </div>
         <div class="field">
           <label for="new-card-set">Set</label>
-          <input type="text" id="new-card-set" placeholder="Obsidian Flames" required />
+          <input type="text" id="new-card-set" placeholder="Obsidian Flames" list="known-sets" required />
+          <datalist id="known-sets"></datalist>
+          <p id="set-suggestion" class="form-hint" hidden></p>
         </div>
         <div class="field">
           <label for="new-card-number">Number</label>

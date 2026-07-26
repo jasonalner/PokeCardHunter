@@ -26,6 +26,8 @@ const els = {
   addCardCancel: document.getElementById('add-card-cancel'),
   runNow: document.getElementById('run-now'),
   runNowStatus: document.getElementById('run-now-status'),
+  knownSets: document.getElementById('known-sets'),
+  setSuggestion: document.getElementById('set-suggestion'),
 };
 
 const CURRENCY_SYMBOLS = { GBP: '£', USD: '$', EUR: '€' };
@@ -87,6 +89,78 @@ function escapeHtml(str) {
   div.textContent = str;
   return div.innerHTML;
 }
+
+let knownPokemonSets = [];
+
+async function loadPokemonSets() {
+  const res = await fetch('/api/pokemon-sets');
+  knownPokemonSets = await res.json();
+  els.knownSets.innerHTML = '';
+  for (const name of knownPokemonSets) {
+    const opt = document.createElement('option');
+    opt.value = name;
+    els.knownSets.appendChild(opt);
+  }
+}
+
+// Standard edit-distance DP. Used only for "did you mean" suggestions on
+// the Set field, never to block submission — informal terms sellers and
+// this tool's own set_aliases use (e.g. "MEP") are deliberately not in the
+// canonical list and shouldn't be flagged as typos.
+function levenshtein(a, b) {
+  const m = a.length;
+  const n = b.length;
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1]
+        ? dp[i - 1][j - 1]
+        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+    }
+  }
+  return dp[m][n];
+}
+
+// Only suggests a correction for something that's CLOSE to a real set name
+// but not exact — the threshold scales with name length so short names
+// aren't over-eager and long names tolerate a few genuine typos.
+function findClosestSetSuggestion(input) {
+  const typed = input.trim().toLowerCase();
+  if (!typed) return null;
+  if (knownPokemonSets.some((s) => s.toLowerCase() === typed)) return null;
+
+  let best = null;
+  let bestDistance = Infinity;
+  for (const set of knownPokemonSets) {
+    const distance = levenshtein(typed, set.toLowerCase());
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = set;
+    }
+  }
+  const threshold = Math.max(2, Math.floor(best.length * 0.25));
+  return bestDistance > 0 && bestDistance <= threshold ? best : null;
+}
+
+els.newCardSet.addEventListener('blur', () => {
+  const suggestion = findClosestSetSuggestion(els.newCardSet.value);
+  if (!suggestion) {
+    els.setSuggestion.hidden = true;
+    return;
+  }
+  els.setSuggestion.innerHTML = `Did you mean "${escapeHtml(suggestion)}"? <button type="button" class="link-button" id="accept-set-suggestion">Use this</button>`;
+  els.setSuggestion.hidden = false;
+  document.getElementById('accept-set-suggestion').addEventListener('click', () => {
+    els.newCardSet.value = suggestion;
+    els.setSuggestion.hidden = true;
+  });
+});
+
+els.newCardSet.addEventListener('input', () => {
+  els.setSuggestion.hidden = true;
+});
 
 async function loadCardNames() {
   const res = await fetch('/api/card-names');
@@ -246,6 +320,7 @@ function exitEditMode() {
   els.newCardCurrency.value = 'GBP';
   els.addCardSubmit.textContent = 'Add Card';
   els.addCardCancel.hidden = true;
+  els.setSuggestion.hidden = true;
 }
 
 els.addCardForm.addEventListener('submit', async (e) => {
@@ -411,5 +486,6 @@ els.clear.addEventListener('click', () => {
 
 loadCardNames();
 loadSetNames();
+loadPokemonSets();
 loadTargetCards();
 loadSettings().then(loadResults);

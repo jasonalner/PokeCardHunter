@@ -362,3 +362,15 @@ select.status-select:disabled {
   margin: 0.5rem 0 0;
   font-size: 0.85rem;
 }
+
+.form-hint {
+  color: var(--purple);
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+}
+
+.form-hint button.link-button {
+  color: var(--purple);
+  text-decoration: underline;
+  font-size: inherit;
+}

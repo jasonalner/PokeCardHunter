@@ -80,6 +80,15 @@ name of a genuinely different real set (e.g. don't alias a promo set to
 "Evolutions" just because sellers sometimes mislabel it that way — that's
 the name of an actual, different 2016 set and would match the wrong card).
 
+The Set field autocompletes against `config/pokemon-sets.json` (all 177
+English-language Pokémon TCG sets, 1999–2026) and, on blur, suggests a
+correction if what you typed is close-but-not-quite a real set name — e.g.
+typing "Temporal Froces" prompts "Did you mean 'Temporal Forces'?". This is
+assistive, not validating: informal terms (like "MEP" above) that aren't in
+the list are never flagged, since real sellers and this tool's own aliasing
+use them too. The list is a point-in-time snapshot and will need occasional
+updates as new sets release (~4×/year).
+
 Adding or editing a card triggers an immediate rescan of just that card
 (a few real seconds — it's a live eBay search) before the request returns,
 so the shown market average is never stale after a change — no need to
