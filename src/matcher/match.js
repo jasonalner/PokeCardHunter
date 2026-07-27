@@ -60,12 +60,20 @@ function numberSpacingVariants(numberToken) {
 // Only flags it when the title actually states a (wrong) denominator —
 // sellers who drop it entirely and just write "169" are still accepted,
 // per primaryNumberToken's existing leniency above.
-function titleHasWrongDenominator(paddedNormalizedTitle, fullNumber) {
+//
+// Operates on the raw (non-normalized) title and requires a literal "/"
+// between the two numbers — a real listing titled "...#169 151 Illustration
+// Rare Eng Mint..." has the numeric set name "151" sitting right after the
+// number with no slash, and normalize() collapsing both "#" and "/" to a
+// plain space made that indistinguishable from a real "169/151" denominator
+// when this checked the normalized title, wrongly rejecting a genuine
+// English listing.
+function titleHasWrongDenominator(rawTitle, fullNumber) {
   const [numerator, denominator] = String(fullNumber ?? '').split('/');
   if (!denominator) return false;
-  const regex = new RegExp(`\\b${numerator}\\s+(\\d+)\\b`, 'g');
+  const regex = new RegExp(`\\b${numerator}\\s*/\\s*(\\d+)\\b`, 'g');
   let match;
-  while ((match = regex.exec(paddedNormalizedTitle))) {
+  while ((match = regex.exec(rawTitle))) {
     if (match[1] !== denominator) return true;
   }
   return false;
@@ -122,7 +130,7 @@ export function isCardMatch(listing, targetCard) {
     return false;
   }
 
-  if (titleHasWrongDenominator(title, targetCard.number)) return false;
+  if (titleHasWrongDenominator(listing.title, targetCard.number)) return false;
 
   const numberForms = numberSpacingVariants(numberToken);
   const numberMatch = numberForms.some((form) => titleContainsToken(title, form));
