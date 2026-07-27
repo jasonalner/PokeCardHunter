@@ -52,6 +52,22 @@ function numberSpacingVariants(numberToken) {
   return variants;
 }
 
+// Every denominator actually stated in the title for this numerator (there
+// can be more than one occurrence). Operates on the raw (non-normalized)
+// title and requires a literal "/" between the two numbers — a real listing
+// titled "...#169 151 Illustration Rare Eng Mint..." has the numeric set
+// name "151" sitting right after the number with no slash, and normalize()
+// collapsing both "#" and "/" to a plain space made that indistinguishable
+// from a real "169/151" denominator when this checked the normalized title,
+// wrongly rejecting a genuine English listing.
+function statedDenominators(rawTitle, numerator) {
+  const regex = new RegExp(`\\b${numerator}\\s*/\\s*(\\d+)\\b`, 'g');
+  const found = [];
+  let match;
+  while ((match = regex.exec(rawTitle))) found.push(match[1]);
+  return found;
+}
+
 // A title that states a denominator for the number and gets it wrong (e.g.
 // target is "169/165", title says "169/210") names a genuinely different
 // print — a real listing used "169/210" for the same numerator because the
@@ -60,23 +76,23 @@ function numberSpacingVariants(numberToken) {
 // Only flags it when the title actually states a (wrong) denominator —
 // sellers who drop it entirely and just write "169" are still accepted,
 // per primaryNumberToken's existing leniency above.
-//
-// Operates on the raw (non-normalized) title and requires a literal "/"
-// between the two numbers — a real listing titled "...#169 151 Illustration
-// Rare Eng Mint..." has the numeric set name "151" sitting right after the
-// number with no slash, and normalize() collapsing both "#" and "/" to a
-// plain space made that indistinguishable from a real "169/151" denominator
-// when this checked the normalized title, wrongly rejecting a genuine
-// English listing.
 function titleHasWrongDenominator(rawTitle, fullNumber) {
   const [numerator, denominator] = String(fullNumber ?? '').split('/');
   if (!denominator) return false;
-  const regex = new RegExp(`\\b${numerator}\\s*/\\s*(\\d+)\\b`, 'g');
-  let match;
-  while ((match = regex.exec(rawTitle))) {
-    if (match[1] !== denominator) return true;
-  }
-  return false;
+  return statedDenominators(rawTitle, numerator).some((d) => d !== denominator);
+}
+
+// A title that states the exact correct denominator (e.g. "169/165") is a
+// specific enough identifier on its own — two different real cards sharing
+// both the same numerator and the same total-set-size is a much rarer
+// coincidence than sharing just the numerator (which happens every set).
+// Used to let a mainline number skip the set-match requirement below when
+// the full fraction is genuinely confirmed, rather than only when the
+// title also happens to word the set the way it's stored/aliased.
+function titleHasCorrectDenominator(rawTitle, fullNumber) {
+  const [numerator, denominator] = String(fullNumber ?? '').split('/');
+  if (!denominator) return false;
+  return statedDenominators(rawTitle, numerator).includes(denominator);
 }
 
 function titleHasConditionKeyword(title) {
@@ -148,6 +164,7 @@ export function isCardMatch(listing, targetCard) {
 
   if (numberMatch) {
     if (isPromoStyleNumber(numberToken)) return true;
+    if (titleHasCorrectDenominator(listing.title, targetCard.number)) return true;
     if (setCandidates.some((set) => titleContainsPhrase(title, set))) return true;
   }
 

@@ -13,6 +13,23 @@ export async function loadSettings() {
   return JSON.parse(raw);
 }
 
+function median(prices) {
+  if (prices.length === 0) return null;
+  const sorted = [...prices].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+// Generous backstop for the rare bundle/box listing that doesn't repeat
+// enough sibling numbers in its title for isCardMatch's bundle check to
+// catch — that check is the primary defense. Price alone can't reliably
+// tell a moderately-priced bundle from a genuinely expensive single card
+// (verified against real data: a tight cutoff excluded a real £312 single
+// while still missing several £135-215 bundles), so this is deliberately
+// loose — 10x the median only catches something like a real "Case of 4
+// Sealed Boxes" listing priced ~60x a single card, not ordinary variance.
+const PRICE_OUTLIER_MULTIPLIER = 10;
+
 // Scans a single target card: recomputes its market average and inserts any
 // new candidates. Exported separately from runPipeline() so the results
 // server can call it for just one card right after it's added or edited —
@@ -27,11 +44,22 @@ export async function scanTargetCard(db, targetCard, minSampleSizeForAverage) {
   // Per-listing alert verdicts still require isConditionOk, via the
   // unchanged matchListing() call below.
   const eligible = listings.filter((l) => isCardMatch(l, targetCard));
-  const sampleCount = eligible.length;
-  const sum = eligible.reduce((s, l) => s + l.price, 0);
+
+  // See PRICE_OUTLIER_MULTIPLIER above — excludes only the rare extreme
+  // outlier from the averaging pool itself; an excluded listing is still
+  // stored as a candidate below (via `eligible`, unaffected), it just isn't
+  // allowed to skew the reference price everything else is judged against.
+  const medianPrice = median(eligible.map((l) => l.price));
+  const forAveraging = medianPrice === null
+    ? eligible
+    : eligible.filter((l) => l.price <= medianPrice * PRICE_OUTLIER_MULTIPLIER);
+  const averagingItemIds = new Set(forAveraging.map((l) => l.itemId));
+
+  const sampleCount = forAveraging.length;
+  const sum = forAveraging.reduce((s, l) => s + l.price, 0);
   const averagePrice = sampleCount > 0 ? sum / sampleCount : null;
-  const minPrice = sampleCount > 0 ? Math.min(...eligible.map((l) => l.price)) : null;
-  const maxPrice = sampleCount > 0 ? Math.max(...eligible.map((l) => l.price)) : null;
+  const minPrice = sampleCount > 0 ? Math.min(...forAveraging.map((l) => l.price)) : null;
+  const maxPrice = sampleCount > 0 ? Math.max(...forAveraging.map((l) => l.price)) : null;
 
   await upsertMarketStats(db, targetCard.id, {
     sampleCount, averagePrice, minPrice, maxPrice, currency: targetCard.currency,
@@ -67,7 +95,10 @@ export async function scanTargetCard(db, targetCard, minSampleSizeForAverage) {
     // average. Without this, a genuinely underpriced listing partially
     // cancels its own "underpriced" signal by dragging the average down —
     // worst exactly when the sample is smallest and the deal most real.
-    const referencePrice = sampleCount > 1
+    // A listing excluded from the averaging pool (the rare extreme price
+    // outlier) was never part of `sum` to begin with, so it's compared
+    // straight against averagePrice instead — same as everything else.
+    const referencePrice = averagingItemIds.has(listing.itemId) && sampleCount > 1
       ? (sum - listing.price) / (sampleCount - 1)
       : averagePrice;
 
