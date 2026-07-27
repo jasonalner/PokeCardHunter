@@ -94,7 +94,7 @@ function isPromoStyleNumber(numberToken) {
   return /^[a-zA-Z]+\s?\d+$/.test(numberToken);
 }
 
-// A title naming more than one number from the same promo family (e.g.
+// A title naming three-plus numbers from the same promo family (e.g.
 // "SWSH260, SWSH261, SWSH262") is very likely a multi-card bundle/box
 // listing, not a single-card listing for just this one — a real £5,085
 // "Case of 4 Sealed Boxes" listing named all three SWSH Black Star Promo
@@ -103,14 +103,19 @@ function isPromoStyleNumber(numberToken) {
 // particular bundle-indicating word ("sealed", "full set", "case" all show
 // up, none consistently), so a title keyword can't catch this — multiple
 // sibling numbers in the same title is the one signal that held up across
-// every real bundle listing checked.
+// every real bundle listing checked. Threshold is 3, not 2: some promo-style
+// numbers are themselves a "this card/total in subset" fraction with a
+// letter prefix on both halves (e.g. Crown Zenith's "GG10/GG70" — 70 cards
+// in the Galarian Gallery subset), which always shows up as exactly 2 same-
+// prefix numbers and isn't a bundle at all — a real Mew GG10 listing titled
+// "...GG10/GG70..." was being wrongly rejected before this was 3.
 function mentionsMultiplePromoNumbers(paddedNormalizedTitle, numberToken) {
   const prefixMatch = /^([a-zA-Z]+)\d+$/.exec(numberToken);
   if (!prefixMatch) return false;
   const prefix = prefixMatch[1].toLowerCase();
   const matches = paddedNormalizedTitle.match(new RegExp(`\\b${prefix}\\s?\\d+\\b`, 'g')) ?? [];
   const distinctNumbers = new Set(matches.map((m) => m.replace(/\s+/g, '')));
-  return distinctNumbers.size > 1;
+  return distinctNumbers.size > 2;
 }
 
 // Does this listing's title genuinely identify the target card? Used both by
