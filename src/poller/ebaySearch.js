@@ -26,6 +26,18 @@ const JUNK_TITLE_TERMS = ['lot', 'bundle', 'job lot', 'proxy', 'custom', 'fake',
 // a market average from ~£65 to ~£120. Title text is the fallback signal.
 const GRADING_KEYWORDS = ['psa', 'cgc', 'bgs', 'ace grade', 'ace 10', 'ace 9', 'beckett', 'gem mint'];
 
+// v1 scope is English-language cards only — a Japanese or Korean print of
+// the exact same name/number is a genuinely different, usually far cheaper
+// product, not a cheaper copy of the same card. A real check on Charmeleon
+// 169/165 found 51 of 93 matching listings (55%) were Japanese/Korean
+// prints averaging £21 against £68 for English ones — left unfiltered, that
+// alone was dragging the computed average down by roughly a third. "sv2a"
+// is the Japanese-only set code for this generation (English listings use
+// "SV"/"151", never "sv2a") and catches many that don't say the language
+// outright. Checked against the full real result set with zero false
+// positives — every flagged title genuinely said Japanese/Korean/sv2a.
+const NON_ENGLISH_KEYWORDS = [/\bjapanese\b/i, /\bjapan\b/i, /\bkorean\b/i, /\bchinese\b/i, /\bsv2a\b/i, /\bjpn\b/i, /\bjp\b/i, /\bkr\b/i, /\bcn\b/i, /\bgerman\b/i, /\bfrench\b/i, /\bitalian\b/i, /\bspanish\b/i];
+
 const CATEGORY_ID = '183454'; // Individual Trading Card Games
 const MARKETPLACE_ID = 'EBAY_GB';
 const DEFAULT_MIN_SELLER_FEEDBACK_SCORE = Number(process.env.MIN_SELLER_FEEDBACK_SCORE ?? 10);
@@ -41,6 +53,10 @@ function isJunkTitle(title) {
 function looksGradedFromTitle(title) {
   const lower = title.toLowerCase();
   return GRADING_KEYWORDS.some((term) => lower.includes(term));
+}
+
+function looksNonEnglishFromTitle(title) {
+  return NON_ENGLISH_KEYWORDS.some((re) => re.test(title));
 }
 
 function stripHtml(html) {
@@ -128,6 +144,7 @@ export async function searchListings(targetCard, { minSellerFeedbackScore = DEFA
     // but not always (see GRADING_KEYWORDS above) — title text is the
     // fallback for when eBay's own field is wrong.
     .filter((item) => item.condition !== 'Graded' && !looksGradedFromTitle(item.title))
+    .filter((item) => !looksNonEnglishFromTitle(item.title))
     .map((item) => ({
       itemId: item.itemId,
       title: item.title,

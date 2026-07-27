@@ -52,6 +52,25 @@ function numberSpacingVariants(numberToken) {
   return variants;
 }
 
+// A title that states a denominator for the number and gets it wrong (e.g.
+// target is "169/165", title says "169/210") names a genuinely different
+// print — a real listing used "169/210" for the same numerator because the
+// Japanese convention counts secret rares into the set total (210) where
+// English convention doesn't (165); same card number, different product.
+// Only flags it when the title actually states a (wrong) denominator —
+// sellers who drop it entirely and just write "169" are still accepted,
+// per primaryNumberToken's existing leniency above.
+function titleHasWrongDenominator(paddedNormalizedTitle, fullNumber) {
+  const [numerator, denominator] = String(fullNumber ?? '').split('/');
+  if (!denominator) return false;
+  const regex = new RegExp(`\\b${numerator}\\s+(\\d+)\\b`, 'g');
+  let match;
+  while ((match = regex.exec(paddedNormalizedTitle))) {
+    if (match[1] !== denominator) return true;
+  }
+  return false;
+}
+
 function titleHasConditionKeyword(title) {
   const lower = title.toLowerCase();
   return CONDITION_KEYWORDS.some((keyword) => lower.includes(keyword));
@@ -102,6 +121,8 @@ export function isCardMatch(listing, targetCard) {
   if (isPromoStyleNumber(numberToken) && mentionsMultiplePromoNumbers(title, numberToken)) {
     return false;
   }
+
+  if (titleHasWrongDenominator(title, targetCard.number)) return false;
 
   const numberForms = numberSpacingVariants(numberToken);
   const numberMatch = numberForms.some((form) => titleContainsToken(title, form));
