@@ -2,7 +2,10 @@ name: Pokemon card scan
 
 on:
   schedule:
-    - cron: '0 * * * *'
+    # Every 2 hours, offset from the top of the hour — GitHub's own docs
+    # flag :00 as the most congested/delayed slot for scheduled workflows,
+    # since every default-configured cron job fires there too.
+    - cron: '17 */2 * * *'
   workflow_dispatch: {}
 
 jobs:

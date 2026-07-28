@@ -4,13 +4,13 @@ See [pokemon-alert-agent-brief.md](./pokemon-alert-agent-brief.md) for the full 
 
 ## Status
 
-Live and running on an hourly schedule. Build order (per brief):
+Live and running on a 2-hourly schedule. Build order (per brief):
 
 1. [x] eBay search module (`src/poller/ebaySearch.js`) — standalone via `npm run poll`
 2. [x] Rule-based matcher (`src/matcher/match.js`) — standalone via `npm run match`
 3. [x] Storage layer (`src/storage/db.js`, `schema.sql`) — hosted on Turso
 4. [x] ntfy notification hook (`src/notifier/notify.js`)
-5. [x] GitHub Actions workflow (`.github/workflows/scan.yml`) — runs hourly
+5. [x] GitHub Actions workflow (`.github/workflows/scan.yml`) — runs every 2 hours
 6. [x] Results screen (`src/server/server.js`, `public/`) — `npm run results`, http://localhost:3000
 
 ## Architecture
@@ -112,10 +112,13 @@ tracked history and is never touched by a delete.
 
 The **"Run Now"** button triggers an immediate pipeline run from the page
 itself (`POST /api/run-now`), for when you don't want to wait for the next
-hourly tick. It's guarded by a simple in-memory lock against double-clicks;
-it isn't guarded against overlapping with the hourly GitHub Actions run,
+scheduled tick. It's guarded by a simple in-memory lock against double-clicks;
+it isn't guarded against overlapping with the scheduled GitHub Actions run,
 which is accepted as a low-probability, undocumented-consequence-free edge
-case rather than solved.
+case rather than solved. Note that GitHub's scheduled runs are best-effort,
+not exact — actual run times can drift by hours under platform load,
+especially at the top of the hour, which is why the schedule is offset to
+`:17` rather than `:00`.
 
 ## Setup
 
