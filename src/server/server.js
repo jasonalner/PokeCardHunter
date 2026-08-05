@@ -14,6 +14,8 @@ import {
   listCardNames,
   listSetNames,
   updateStatus,
+  deleteCandidate,
+  getCandidateByItemId,
   VALID_STATUSES,
   listTargetCardsWithStats,
   addTargetCard,
@@ -70,6 +72,19 @@ app.patch('/api/candidates/:itemId', async (req, res) => {
     return res.status(400).json({ error: `invalid status: ${status}` });
   }
   await updateStatus(db, req.params.itemId, status);
+  res.json({ ok: true });
+});
+
+// For a listing that sold to someone else before it was acted on — status
+// is checked in deleteCandidate() itself too, but the explicit check here
+// gives a clear 400 instead of a silent no-op if the frontend ever sends
+// this for a non-'found' row.
+app.delete('/api/candidates/:itemId', async (req, res) => {
+  const row = await getCandidateByItemId(db, req.params.itemId);
+  if (row && row.status !== 'found') {
+    return res.status(400).json({ error: 'only found-status candidates can be removed this way' });
+  }
+  await deleteCandidate(db, req.params.itemId);
   res.json({ ok: true });
 });
 

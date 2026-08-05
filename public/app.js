@@ -226,6 +226,9 @@ function renderRows(rows) {
         </select>
       </td>
       <td><a href="${row.listing_url}" target="_blank" rel="noopener">View ↗</a></td>
+      <td class="actions-cell">${row.status === 'found'
+        ? `<button type="button" class="link-button remove-candidate" data-item-id="${row.item_id}">Remove</button>`
+        : ''}</td>
     `;
     els.body.appendChild(tr);
   }
@@ -391,6 +394,24 @@ els.targetCardsBody.addEventListener('click', async (e) => {
       alert(`Failed to delete: ${err.message}`);
       deleteBtn.disabled = false;
     }
+  }
+});
+
+els.body.addEventListener('click', async (e) => {
+  const removeBtn = e.target.closest('.remove-candidate');
+  if (!removeBtn) return;
+
+  if (!confirm('Remove this listing? Use this once it\'s no longer available (sold to someone else) — it will be gone from the results permanently.')) return;
+
+  removeBtn.disabled = true;
+  try {
+    const res = await fetch(`/api/candidates/${encodeURIComponent(removeBtn.dataset.itemId)}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(`remove failed: ${res.status}`);
+    await loadResults();
+  } catch (err) {
+    console.error(err);
+    alert(`Failed to remove: ${err.message}`);
+    removeBtn.disabled = false;
   }
 });
 

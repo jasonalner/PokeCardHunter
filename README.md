@@ -74,6 +74,12 @@ primary status view; filter further by card, set, alerted, date range,
 price range, and minimum margin %. Click a row's status badge to change it
 directly against the database — the row moves to its new tab immediately,
 since a status change triggers a fresh fetch rather than patching in place.
+A `found`-status row also has a **Remove** action — for when the listing
+itself sold to someone else before you could act on it. This permanently
+deletes the row (no separate "unavailable" status/tab), since there's
+nothing worth tracking about a listing you never engaged with. Only ever
+available on `found` rows — offered/bought/sold/flipped rows are real
+purchase history and can't be removed this way, enforced server-side too.
 
 The margin filter defaults to `config/settings.json`'s `priceThresholdPct`
 (the same bar that triggers a push alert), so the page opens showing only

@@ -134,6 +134,16 @@ export async function updateStatus(db, itemId, status) {
   });
 }
 
+// Only ever called for status='found' rows (enforced by the API route) — a
+// listing that sold to someone else before it was acted on isn't purchase
+// history worth keeping, unlike offered/bought/sold/flipped rows.
+export async function deleteCandidate(db, itemId) {
+  await db.execute({
+    sql: "DELETE FROM candidates WHERE item_id = ? AND status = 'found'",
+    args: [itemId],
+  });
+}
+
 export const VALID_STATUSES = ['found', 'offered', 'bought', 'sold', 'flipped'];
 
 // found_at is stored as an ISO timestamp; date-only filter values (from an
